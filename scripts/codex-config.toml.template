@@ -1,0 +1,8 @@
+# Codex config for local vLLM (air-gapped). Bootstrap sets __VLLM_PORT__ from VLLM_PORT (default 28080).
+model = "Nanbeige4.1-3B"
+model_provider = "proxy"
+
+[model_providers.proxy]
+name = "vLLM"
+base_url = "http://127.0.0.1:__VLLM_PORT__/v1"
+wire_api = "responses"

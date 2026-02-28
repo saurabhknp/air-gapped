@@ -1,0 +1,24 @@
+# Fetched by bootstrap.sh - do not commit (code only in repo)
+models/
+.venv/
+.codex/
+bin/
+
+# Legacy Codex state (when CODEX_HOME was project root; now only .codex/ is used)
+sessions/
+shell_snapshots/
+skills/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Env / local
+.env
+.envrc
+*.local
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

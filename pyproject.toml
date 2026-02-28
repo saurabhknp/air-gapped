@@ -1,0 +1,14 @@
+[project]
+name = "air-gapped-codex-vllm"
+version = "0.1.0"
+description = "Portable Codex CLI + vLLM (Nanbeige4.1-3B) for air-gapped use"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "huggingface_hub>=0.20.0",
+    "vllm>=0.6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
