@@ -37,7 +37,7 @@ Use a terminal in this project folder.
 ./bootstrap.sh
 ```
 
-This creates a Python env, downloads the default model (~6GB), and writes config. When it finishes, you’ll see: `[bootstrap] Done. Next: ...`
+This creates a Python env, downloads the default model (GGUF Q4_K_M, ~2GB), and writes config. When it finishes, you’ll see: `[bootstrap] Done. Next: ...`
 
 ### 2. Start the model server
 
@@ -95,22 +95,24 @@ Always run `./run-codex.sh` from **this project folder** so Codex uses this proj
 
 ---
 
-## Optional: different model or CPU-only
+## Optional: different model or GPU
 
-**Another model (e.g. GGUF quantized):**
+**Default:** CPU mode with GGUF quantized model; `./start-vllm.sh` auto-detects CPU count and RAM.
+
+**Full-precision model (e.g. for GPU):**
 
 ```bash
-./bootstrap.sh 2          # or: ./bootstrap.sh gguf
+./bootstrap.sh 1          # or: ./bootstrap.sh nanbeige
 # then ./start-vllm.sh and ./run-codex.sh as usual
 ```
 
-**CPU-only (no GPU):**
+**Use GPU instead of CPU:**
 
 ```bash
-VLLM_DEVICE=cpu ./start-vllm.sh
+VLLM_DEVICE=cuda ./start-vllm.sh
 ```
 
-Slower, but works on locked-down workstations with no GPU.
+To override auto-detected CPU resources: `VLLM_CPU_NUM_THREADS=8` and/or `VLLM_CPU_KVCACHE_SPACE=4` (GiB). See [docs/README.md](docs/README.md#controlling-cpu-inference-threads-and-memory).
 
 ---
 
@@ -122,13 +124,14 @@ Slower, but works on locked-down workstations with no GPU.
 | “vLLM is not reachable” or Codex doesn’t answer | Start the server: `./start-vllm.sh`, wait until it’s up, then run `./run-codex.sh exec "..."`. |
 | Codex CLI not found | Install from Cursor (Preferences → Advanced → Install CLI) or npm; open a new terminal. |
 | Port 28080 in use | Run `./stop-vllm.sh`, wait a few seconds, try again. Or use another port: `VLLM_PORT=28081 ./start-vllm.sh` and `VLLM_PORT=28081 ./run-codex.sh exec "..."`. |
-| Out of memory (OOM) | Try a smaller context: `VLLM_MAX_MODEL_LEN=8192 ./start-vllm.sh`. |
+| Out of memory (OOM) | GPU: try `VLLM_MAX_MODEL_LEN=8192` or lower `VLLM_GPU_MEMORY_UTILIZATION`. CPU: set `VLLM_CPU_KVCACHE_SPACE` (GiB) and/or `VLLM_MAX_MODEL_LEN=4096`. |
 
 ---
 
 ## Project charter and docs
 
 - **[CHARTER.md](CHARTER.md)** — Why this project exists, who it’s for, and what we will (and won’t) do. All development is guided by it.
+- **[CHANGELOG.md](CHANGELOG.md)** — Release history. Current version: **0.2.0** (see [VERSION](VERSION)).
 - **[VERSIONS.md](VERSIONS.md)** — Version baseline (vLLM ≥ 0.16, Codex CLI) and links to official docs.
 - **[docs/README.md](docs/README.md)** — Technical reference (architecture, bootstrap, CPU/GPU, config).
 - **[README.zh-CN.md](README.zh-CN.md)** — 中文说明。
@@ -140,6 +143,7 @@ Slower, but works on locked-down workstations with no GPU.
 | Path | Purpose |
 |------|--------|
 | `CHARTER.md` | Project charter (vision, principles, scope). |
+| `CHANGELOG.md`, `VERSION` | Release history and current version (0.2.0). |
 | `VERSIONS.md` | Version baseline and doc links. |
 | `docs/README.md` | Technical documentation. |
 | `bootstrap.sh` | One-time setup (run once). |

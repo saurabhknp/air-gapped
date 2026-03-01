@@ -5,8 +5,8 @@ Usage:
   python scripts/download_model.py <ROOT> [REPO_ID]
 
   REPO_ID: Hugging Face repo (e.g. Nanbeige/Nanbeige4.1-3B). Omit to use default.
-  Default: Nanbeige/Nanbeige4.1-3B
-  Presets: "gguf" or "2" -> Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF
+  Default: Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF (GGUF quantized, CPU-friendly).
+  Presets: "1" or "nanbeige" -> Nanbeige/Nanbeige4.1-3B (full); "2" or "gguf" -> default GGUF.
 
   Use project .venv: .venv/bin/python scripts/download_model.py <ROOT> [REPO_ID]
 
@@ -17,12 +17,12 @@ from __future__ import annotations
 import os
 import sys
 
-DEFAULT_REPO = "Nanbeige/Nanbeige4.1-3B"
+DEFAULT_REPO = "Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF"
 PRESETS: dict[str, str] = {
-    "1": DEFAULT_REPO,
-    "nanbeige": DEFAULT_REPO,
-    "2": "Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF",
-    "gguf": "Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF",
+    "1": "Nanbeige/Nanbeige4.1-3B",
+    "nanbeige": "Nanbeige/Nanbeige4.1-3B",
+    "2": DEFAULT_REPO,
+    "gguf": DEFAULT_REPO,
 }
 
 

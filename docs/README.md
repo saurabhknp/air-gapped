@@ -42,8 +42,9 @@ Codex CLI can talk to a backend via the **Responses API** (`/v1/responses`). Whe
 
 ## Bootstrap and model choice
 
-- **Default model:** `Nanbeige/Nanbeige4.1-3B` (good balance of size and quality for ops tasks).
-- **Presets:** `./bootstrap.sh 2` or `./bootstrap.sh gguf` → GGUF quantized model (smaller, CPU-friendly).
+- **Install mode (default: CPU-only):** `./bootstrap.sh` uses CPU-first install (PyTorch from CPU index when possible; vLLM may still pull CUDA wheels due to its pinned deps). **Runtime** is always CPU unless you set `VLLM_DEVICE=cuda`. For a full CUDA stack from the start: `VLLM_USE_GPU=1 ./bootstrap.sh` or `./bootstrap.sh gpu`.
+- **Default model:** `Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF` (GGUF Q4_K_M quantized, CPU-friendly).
+- **Presets:** `./bootstrap.sh 1` or `nanbeige` → full `Nanbeige/Nanbeige4.1-3B`; `./bootstrap.sh 2` or `gguf` → default GGUF.
 - **Custom:** `./bootstrap.sh owner/repo` or `HF_MODEL_REPO_ID=owner/repo ./bootstrap.sh`.
 
 Bootstrap writes:
@@ -55,8 +56,25 @@ Bootstrap writes:
 
 ## CPU and GPU
 
-- **GPU (default):** `./start-vllm.sh` uses CUDA if available. Context length is capped (e.g. 32768) so the model fits in GPU memory; override with `VLLM_MAX_MODEL_LEN`.
-- **CPU:** `VLLM_DEVICE=cpu ./start-vllm.sh`. Uses a smaller default context (4096). Slower but allows use on machines without GPUs (e.g. many secure workstations).
+- **CPU (default):** `./start-vllm.sh` defaults to `VLLM_DEVICE=cpu` for air-gapped / CPU-only servers. It auto-detects the number of logical CPUs and total RAM, and sets `OMP_NUM_THREADS` and `VLLM_CPU_KVCACHE_SPACE` (~50% of RAM, min 2 GiB) so no manual tuning is required. Context length default is 4096 for CPU.
+- **GPU:** set `VLLM_DEVICE=cuda ./start-vllm.sh` to use CUDA. Context length is capped (e.g. 32768); override with `VLLM_MAX_MODEL_LEN`.
+
+### Controlling CPU inference (threads and memory)
+
+When running with `VLLM_DEVICE=cpu` (the default), thread count and KV cache size are **auto-detected** from the machine. You can override them:
+
+| Env | Effect |
+|-----|--------|
+| **VLLM_CPU_NUM_THREADS** | Number of CPU threads (exported as `OMP_NUM_THREADS`). Unset = auto-detect (all logical CPUs). Override e.g. `VLLM_CPU_NUM_THREADS=4` to limit. |
+| **VLLM_CPU_KVCACHE_SPACE** | KV cache size in **GiB**. Unset = auto-detect (~50% of total RAM, minimum 2 GiB). Override e.g. `VLLM_CPU_KVCACHE_SPACE=4` on shared hosts. |
+
+Example:
+
+```bash
+VLLM_DEVICE=cpu VLLM_CPU_NUM_THREADS=8 VLLM_CPU_KVCACHE_SPACE=4 ./start-vllm.sh
+```
+
+The script forwards these only when `VLLM_DEVICE=cpu`. No code changes are required; env vars are enough for stable, automated CPU runs.
 
 ---
 

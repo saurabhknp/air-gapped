@@ -11,8 +11,8 @@ CODEX_DIR := $(ROOT)/.codex
 help:
 	@echo "Targets:"
 	@echo "  clean   - Remove .venv, models/, .codex/ (all fetched/generated content)"
-	@echo "  deps    - Create .venv, install Python deps, download model, create .codex/config.toml (run bootstrap.sh)"
-	@echo "  upgrade - Upgrade Python packages (huggingface_hub, vllm) to latest; requires 'deps' first"
+	@echo "  deps    - CPU-only bootstrap (default). Use 'make deps GPU=1' for CUDA/GPU."
+	@echo "  upgrade - Upgrade Python packages; requires 'deps' first"
 	@echo "  test    - Run full detection (start vLLM, API + Codex exec, stop, failure-path checks); requires 'deps' and codex on PATH"
 
 clean:
@@ -21,7 +21,7 @@ clean:
 
 deps:
 	@echo "[make] Running bootstrap.sh (venv + deps + model + .codex/config.toml) ..."
-	./bootstrap.sh
+	./bootstrap.sh $(if $(GPU),gpu,)
 
 upgrade:
 	@test -d $(VENV) || (echo "[make] Run 'make deps' first." && exit 1)

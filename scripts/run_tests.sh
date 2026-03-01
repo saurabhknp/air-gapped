@@ -22,22 +22,22 @@ if curl -sf "http://127.0.0.1:$PORT/v1/models" >/dev/null 2>&1; then
   exit 1
 fi
 
-# 2) Start vLLM (GPU, default model)
-echo "--- Starting vLLM (GPU)..."
+# 2) Start vLLM (default: CPU mode and GGUF model)
+echo "--- Starting vLLM..."
 ./start-vllm.sh &
 VLLM_PID=$!
 cleanup() { kill $VLLM_PID 2>/dev/null; ./stop-vllm.sh 2>/dev/null; }
 trap cleanup EXIT
 
-# 3) Wait for ready
+# 3) Wait for ready (CPU + GGUF can take 5–10 min)
 echo "Waiting for vLLM..."
-for i in $(seq 1 24); do
+for i in $(seq 1 120); do
   sleep 5
   if curl -sf "http://127.0.0.1:$PORT/v1/models" >/dev/null 2>&1; then
-    echo "  vLLM ready at ${i}0s"
+    echo "  vLLM ready at $((i*5))s"
     break
   fi
-  [[ $i -eq 24 ]] && { echo "  vLLM did not become ready"; exit 1; }
+  [[ $i -eq 120 ]] && { echo "  vLLM did not become ready (10 min)"; exit 1; }
 done
 
 # 4) API test
