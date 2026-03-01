@@ -15,12 +15,10 @@ if [[ ! -d "$ROOT/.venv" ]]; then
   uv venv "$ROOT/.venv" --python 3.12
   echo "[bootstrap] Created .venv"
 fi
-# Install deps (idempotent)
+# Install deps (idempotent). Use latest vLLM for /v1/responses (Codex wire_api = "responses").
 export VIRTUAL_ENV="$ROOT/.venv"
 export PATH="$ROOT/.venv/bin:$PATH"
-uv pip install --quiet huggingface_hub
-uv pip install --quiet vllm
-# Optional: vLLM with specific CUDA/ROCm: uv pip install --quiet vllm --torch-backend=auto
+uv pip install --quiet "huggingface_hub>=0.20.0" "vllm>=0.16.0"
 echo "[bootstrap] Venv ready (huggingface_hub, vllm)"
 
 # 3. Model (default: Nanbeige/Nanbeige4.1-3B; set HF_MODEL_REPO_ID or pass preset: 1|nanbeige, 2|gguf, or any HF repo_id)
@@ -34,6 +32,8 @@ MODEL_NAME="${HF_MODEL_REPO_ID##*/}"
 MODEL_DIR="$ROOT/models/$MODEL_NAME"
 if [[ ! -d "$MODEL_DIR" ]] || [[ -z "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]]; then
   echo "[bootstrap] Downloading $HF_MODEL_REPO_ID ..."
+  # Avoid SOCKS proxy so huggingface_hub uses HTTP proxy only (no socksio dependency)
+  unset ALL_PROXY all_proxy 2>/dev/null || true
   "$ROOT/.venv/bin/python" scripts/download_model.py "$ROOT" "$HF_MODEL_REPO_ID"
 else
   echo "[bootstrap] Model already present at $MODEL_DIR"

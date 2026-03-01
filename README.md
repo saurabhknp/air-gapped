@@ -1,124 +1,257 @@
 # Portable Codex CLI + vLLM
 
-Self-contained directory for running **Codex CLI** against a local **vLLM** server. Default model: **Nanbeige/Nanbeige4.1-3B**; you can choose another Hugging Face model or use the optional GGUF preset. All resources live inside this directory; copy to an air-gapped system and run without network or system-wide config.
+Run **Codex CLI** (Cursor’s coding agent) with a **local AI model** on your machine. No cloud API key needed. Everything stays in this folder. The project uses **vLLM ≥ 0.16** so the server supports the Responses API (`/v1/responses`) that Codex expects.
 
-- **CODEX_HOME** is set to this directory’s **`.codex`** so config, sessions, and history stay under the project and **`~/.codex` is never used** ([Advanced Config](https://developers.openai.com/codex/config-advanced#config-and-state-locations)).
+---
 
-## Prerequisites
+## What you need before starting
 
-- **uv** (Python): [install uv](https://docs.astral.sh/uv/getting-started/installation/)
-- **Codex CLI**: Install from Cursor → Preferences → Advanced → **Install CLI** (so `codex` is on PATH). Run Codex via `./run-codex.sh`; it sets CODEX_HOME to this project’s `.codex` and uses `.codex/config.toml` (proxy provider, default model).
+1. **uv** (installs Python and packages)  
+   - Install: https://docs.astral.sh/uv/getting-started/installation/  
+   - Check: run `uv --version` in a terminal.
 
-## 1. Bootstrap (once, on a machine with internet)
+2. **Codex CLI** (the command you’ll run)  
+   - In **Cursor**: open **Preferences** → **Advanced** → click **Install CLI**.  
+   - Check: open a new terminal and run `codex --version`.
 
-**Choose which model to download:**
+3. **A GPU** is recommended (faster). If you only have a CPU, you can still use it; see [Using CPU instead of GPU](#using-cpu-instead-of-gpu) below.
 
-| Option | Command | Model |
-|--------|---------|--------|
-| Default | `./bootstrap.sh` | Nanbeige/Nanbeige4.1-3B |
-| Preset GGUF | `./bootstrap.sh 2` or `./bootstrap.sh gguf` | Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF |
-| Any HF repo | `HF_MODEL_REPO_ID=owner/repo ./bootstrap.sh` or `./bootstrap.sh owner/repo` | Your chosen repo |
+---
 
-Bootstrap will:
+## Quick start (3 steps)
 
-- Create `.venv` and install `huggingface_hub` and `vllm`
-- Download the selected model into `./models/<model_name>`
-- Create `.codex/config.toml` and `.codex/model_info` (proxy provider, default model, port from VLLM_PORT or 28080)
-- Use real files only (`local_dir_use_symlinks=False`) for copy-to-air-gapped portability
+Do these in order. Use a terminal opened in this project folder.
 
-If the model repo is gated, set `HF_TOKEN` or run `huggingface-cli login` before `./bootstrap.sh`.
-
-## 2. Copy to air-gapped host
-
-Copy the **entire** directory (including `models/`, `.venv/`, `.codex/`). No network needed on the target.
-
-## 3. Run on air-gapped (or same machine)
-
-**Quick start (3 steps):**
+### Step 1: One-time setup (only once, needs internet)
 
 ```bash
-./start-vllm.sh                    # Terminal 1: start server
-./run-codex.sh exec "Your prompt"  # Terminal 2: run Codex (model auto-filled from config)
-./stop-vllm.sh                     # when done: stop server
+./bootstrap.sh
 ```
 
-**Terminal 1 – start vLLM:** `./start-vllm.sh`
+- This creates a Python environment, downloads the default model (~6GB), and writes config.  
+- It can take several minutes. When it finishes, you’ll see: `[bootstrap] Done. Next: ...`
 
-- **CPU instead of GPU:** `VLLM_DEVICE=cpu ./start-vllm.sh`
+### Step 2: Start the model server
 
-**Terminal 2 – run Codex:** Model is read from `.codex/config.toml`; no need to pass `--model` unless you override.
+**Leave this terminal open.** Run:
 
 ```bash
-./run-codex.sh exec "Hello"
-# With options: ./run-codex.sh exec --json -- 'Your prompt'
-# Override model: ./run-codex.sh exec --model <model-id> "Hello"
+./start-vllm.sh
 ```
 
-**Stop vLLM:** `./stop-vllm.sh`
+- Wait until you see the server is running (e.g. “Uvicorn running on http://127.0.0.1:28080”).  
+- The first start can take 1–2 minutes to load the model.
 
-**If Codex has no response:** ensure vLLM is running (`./start-vllm.sh`), then run `./test-vllm-api.sh`. Codex uses the "proxy" provider in `.codex/config.toml` pointing at local vLLM.
+### Step 3: Run Codex (in a second terminal)
 
-## If vLLM runs out of memory (OOM)
-
-`start-vllm.sh` already uses vLLM options to reduce OOM risk:
-
-- **`--max-model-len auto`** — vLLM automatically picks the largest context length that fits in GPU memory (see [engine args](https://docs.vllm.ai/en/latest/configuration/engine_args/)).
-- **`--gpu-memory-utilization 0.85`** — Uses 85% of GPU memory by default (vLLM default is 0.9); leaves some headroom.
-
-If you still hit OOM, lower GPU utilization:
+Open a **new** terminal, go to the same project folder, then run:
 
 ```bash
-VLLM_GPU_MEMORY_UTILIZATION=0.75 ./start-vllm.sh
+./run-codex.sh exec "Write a Python function that adds two numbers"
 ```
 
-Or cap context length by adding `--max-model-len 4096` (or another value) to the `vllm serve` command in `start-vllm.sh`.
+- Codex will use the local model you started in Step 2.  
+- Replace the quoted text with any task you want.
 
-## Configuring Codex CLI
+When you’re done, in the terminal where vLLM is running press **Ctrl+C**, or in any terminal run:
 
-Codex reads project config from **`.codex/config.toml`** (created by bootstrap). You can edit it to tune model behavior and avoid the “Model metadata not found” warning.
+```bash
+./stop-vllm.sh
+```
 
-**Config file location:** `./.codex/config.toml` (or `$CODEX_HOME/config.toml` when using this project).
+---
 
-**Useful keys** (see [Config basics](https://developers.openai.com/codex/config-basic) and [Advanced Config](https://developers.openai.com/codex/config-advanced)):
+## What each command does
 
-| Key | Description |
-|-----|-------------|
-| `model` | Default model id (must match vLLM’s `--served-model-name`). |
-| `model_provider` | Provider name (this project uses `"proxy"` for vLLM). |
-| `model_context_window` | Max context length (tokens). Example: `model_context_window = 262144`. Reduces “metadata not found” issues and caps context. |
-| `model_verbosity` | `"low"` \| `"medium"` \| `"high"` — response length hint (Responses API). |
-| `model_reasoning_summary` | e.g. `"none"` — control reasoning summaries. |
+| Command | What it does |
+|--------|----------------|
+| `./bootstrap.sh` | First-time setup: installs tools and downloads the model (run once). |
+| `./start-vllm.sh` | Starts the local model server (keep this terminal open). |
+| `./run-codex.sh exec "your task"` | Runs Codex with your task; uses the local server. |
+| `./stop-vllm.sh` | Stops the model server. |
+| `./test-vllm-api.sh` | Quick check that the server is responding (optional). |
 
-**Model metadata (context length, max output):** Codex can use a **model catalog** JSON for full metadata (context window, max output tokens, etc.). Without it, Codex may warn and use fallback values. To supply metadata for your local model:
+Always run `./run-codex.sh` from **this project folder**. Don’t run the raw `codex` command from here; use the script so it uses this project’s config.
 
-1. Create a JSON file (e.g. `.codex/model_catalog.json`) describing your model (context window, max output, etc.). Format is provider-specific; see [Codex config reference](https://developers.openai.com/codex/config-reference) for `model_catalog_json`.
-2. In `.codex/config.toml` add: `model_catalog_json = ".codex/model_catalog.json"` (path relative to project root or absolute).
+---
 
-**Per-request max output:** The API’s `max_tokens` (or `max_completion_tokens`) is sent per request; vLLM and Codex respect it. Codex does not set a global max output in config; use the catalog or leave it to the API default.
+## Troubleshooting
 
-## Layout
+### “.codex/config.toml not found”
+
+You haven’t run setup yet. Run:
+
+```bash
+./bootstrap.sh
+```
+
+then try again.
+
+---
+
+### “vLLM is not reachable” or Codex doesn’t answer
+
+The model server isn’t running or isn’t ready yet.
+
+1. In one terminal run: `./start-vllm.sh`  
+2. Wait until you see the server is up (e.g. “Uvicorn running …”).  
+3. Then in another terminal run: `./run-codex.sh exec "your task"`
+
+To test the server only:
+
+```bash
+./test-vllm-api.sh
+```
+
+If that fails, start vLLM first and wait a bit, then run the test again.
+
+---
+
+### “No such file or directory” when running a script
+
+You’re not in the project folder. In the terminal run:
+
+```bash
+cd /path/to/air-gapped
+```
+
+(replace with the real path to this folder), then run the command again.
+
+---
+
+### “Codex CLI not found on PATH”
+
+Codex isn’t installed. In Cursor: **Preferences** → **Advanced** → **Install CLI**, then open a **new** terminal and try again.
+
+---
+
+### “Port 28080 is already in use”
+
+Something else is using that port, or an old vLLM is still running. Stop it:
+
+```bash
+./stop-vllm.sh
+```
+
+Wait a few seconds, then run `./start-vllm.sh` again. If it still fails, try another port:
+
+```bash
+VLLM_PORT=28081 ./start-vllm.sh
+```
+
+Then when you run Codex, use the same port:
+
+```bash
+VLLM_PORT=28081 ./run-codex.sh exec "your task"
+```
+
+---
+
+### Server runs out of memory (OOM) or “KV cache” error
+
+The default context length may be too large for your GPU. Start vLLM with a smaller limit:
+
+```bash
+VLLM_MAX_MODEL_LEN=8192 ./start-vllm.sh
+```
+
+You can try `4096` or `16384` if needed.
+
+---
+
+## Optional: choose a different model
+
+By default the project uses **Nanbeige/Nanbeige4.1-3B**. To use another model, run bootstrap **once** with one of these:
+
+| What you want | Command |
+|---------------|--------|
+| Default (recommended) | `./bootstrap.sh` |
+| GGUF quantized model | `./bootstrap.sh 2` or `./bootstrap.sh gguf` |
+| Another Hugging Face model | `./bootstrap.sh owner/model-name` |
+
+Example for a different model:
+
+```bash
+./bootstrap.sh 2
+```
+
+Then use `./start-vllm.sh` and `./run-codex.sh` as before.
+
+---
+
+## Using CPU instead of GPU
+
+If you don’t have a GPU or want to force CPU:
+
+```bash
+VLLM_DEVICE=cpu ./start-vllm.sh
+```
+
+It will be slower. Some setups may show tokenizer errors; if so, try the default GPU path or a different vLLM version.
+
+---
+
+## Copying to another machine (air-gapped)
+
+1. On a machine **with internet**: run `./bootstrap.sh` and wait for it to finish.  
+2. Copy the **entire** project folder (including `models/`, `.venv/`, `.codex/`).  
+3. On the other machine (no network needed): run `./start-vllm.sh` and then `./run-codex.sh exec "..."` as in Quick start.
+
+---
+
+## Configuring Codex (optional)
+
+The file `.codex/config.toml` is created by bootstrap. You can edit it to change the default model or context length. Main keys:
+
+- **model** — Model name (must match what vLLM serves).  
+- **model_context_window** — Max context length in tokens (e.g. `32768`).
+
+To reduce “Model metadata not found” warnings, you can set `model_context_window` to a number (e.g. `32768`). See [Codex config](https://developers.openai.com/codex/config-basic) for more options.
+
+---
+
+## Project layout (reference)
 
 | Path | Purpose |
 |------|--------|
-| `bootstrap.sh` | One-click fetch of model, venv, and Codex config (run once online) |
-| `env.sh` | Exports CODEX_HOME, OPENAI_API_BASE, OPENAI_API_KEY (sourced by run-codex.sh) |
-| `start-vllm.sh` | Start vLLM on port 28080 (override with VLLM_PORT) |
-| `stop-vllm.sh` | Stop vLLM (uses `.codex/vllm.pid` when set by start-vllm.sh, else pgrep) |
-| `run-codex.sh` | Run Codex with CODEX_HOME=.codex and .codex/config.toml (adds --skip-git-repo-check for exec) |
-| `models/<name>/` | Model files (created by bootstrap; name from chosen repo) |
-| `.venv/` | Python env with vLLM (created by bootstrap) |
-| `scripts/codex-config.toml.template` | Codex config template (bootstrap writes .codex/config.toml from it) |
-| `.codex/` | Codex config/sessions; config.toml, model_info, vllm.pid when vLLM running (CODEX_HOME) |
+| `VERSIONS.md` | Version baseline (vLLM, Codex) and doc links |
+| `bootstrap.sh` | One-time setup (run once) |
+| `start-vllm.sh` | Start the model server |
+| `stop-vllm.sh` | Stop the model server |
+| `run-codex.sh` | Run Codex with this project’s config |
+| `test-vllm-api.sh` | Test that the server answers |
+| `models/` | Downloaded model files (created by bootstrap) |
+| `.venv/` | Python environment (created by bootstrap) |
+| `.codex/` | Codex config and state for this project |
 
-`models/`, `.venv/`, `.codex/`, `bin/` are in `.gitignore`; only code and config template are committed. Re-run `./bootstrap.sh` or `make deps` to recreate them.
+---
 
-## Make
+## Make commands (optional)
 
-| Target | Description |
-|--------|--------------|
-| `make clean` | Remove `.venv`, `models/`, `.codex/` (all fetched/generated content) |
-| `make deps` | Run bootstrap: create venv, install deps, download model, create `.codex/config.toml` |
-| `make upgrade` | Upgrade Python packages (huggingface_hub, vllm) to latest; run `make deps` first if `.venv` is missing |
+If you use `make`:
+
+- `make deps` — Same as `./bootstrap.sh`  
+- `make clean` — Remove `.venv`, `models/`, `.codex/` (start over)  
+- `make test` — Start vLLM, run API test and checks, then stop (requires `codex` on PATH)
+
+---
+
+## Known issues
+
+- **Proxy:** If you use a SOCKS proxy (`ALL_PROXY=socks5://...`), bootstrap temporarily unsets it for the model download so the download works with an HTTP proxy.  
+- **Responses API:** This project uses **vLLM ≥ 0.16** so the server exposes `/v1/responses`, which Codex uses when `wire_api = "responses"` in `.codex/config.toml`. Older vLLM only had `/v1/chat/completions` and would return 404 for Codex.  
+- **CPU / GGUF:** Some vLLM + transformers combinations can fail on CPU or with certain GGUF models. If you see tokenizer or path errors, use GPU and the default model first.
+
+---
+
+## Version baseline and docs
+
+For the exact versions and doc links used as the current baseline, see **[VERSIONS.md](VERSIONS.md)**:
+
+- **vLLM** ≥ 0.16.0 — [docs](https://docs.vllm.ai/en/latest/), needed for `/v1/responses` (Codex).
+- **Codex CLI** — install from Cursor or [changelog](https://developers.openai.com/codex/changelog); [CLI reference](https://developers.openai.com/codex/cli/reference), [config](https://developers.openai.com/codex/config-advanced).
+
+---
 
 ## License
 

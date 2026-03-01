@@ -6,13 +6,14 @@ VENV := $(ROOT)/.venv
 MODELS := $(ROOT)/models
 CODEX_DIR := $(ROOT)/.codex
 
-.PHONY: clean deps upgrade help
+.PHONY: clean deps upgrade test help
 
 help:
 	@echo "Targets:"
 	@echo "  clean   - Remove .venv, models/, .codex/ (all fetched/generated content)"
 	@echo "  deps    - Create .venv, install Python deps, download model, create .codex/config.toml (run bootstrap.sh)"
 	@echo "  upgrade - Upgrade Python packages (huggingface_hub, vllm) to latest; requires 'deps' first"
+	@echo "  test    - Run full detection (start vLLM, API + Codex exec, stop, failure-path checks); requires 'deps' and codex on PATH"
 
 clean:
 	rm -rf $(VENV) $(MODELS) $(CODEX_DIR)
@@ -26,3 +27,6 @@ upgrade:
 	@test -d $(VENV) || (echo "[make] Run 'make deps' first." && exit 1)
 	export VIRTUAL_ENV="$(VENV)" PATH="$(VENV)/bin:$$PATH" && uv pip install --upgrade huggingface_hub vllm
 	@echo "[make] Upgraded huggingface_hub and vllm"
+
+test:
+	@./scripts/run_tests.sh

@@ -42,17 +42,26 @@ if [[ "$VLLM_DEVICE" == "cpu" ]]; then
   export CUDA_VISIBLE_DEVICES=""
 fi
 LOAD_FORMAT=""
+VLLM_MODEL_PATH="$MODEL_DIR"
 if compgen -G "$MODEL_DIR/*.gguf" >/dev/null 2>&1; then
   LOAD_FORMAT="--load-format gguf"
+  # vLLM expects path to the .gguf file for GGUF, not the directory
+  VLLM_MODEL_PATH="$(find "$MODEL_DIR" -maxdepth 1 -name "*.gguf" -print -quit)"
+  [[ -z "$VLLM_MODEL_PATH" ]] && { echo "No .gguf file in $MODEL_DIR" >&2; exit 1; }
 fi
-"$ROOT/.venv/bin/vllm" serve "$MODEL_DIR" \
-  $LOAD_FORMAT \
-  --trust-remote-code \
-  --host 127.0.0.1 \
-  --port "$PORT" \
-  --max-model-len auto \
-  --gpu-memory-utilization "$GPU_UTIL" \
-  --served-model-name "$SERVED_MODEL_NAME" &
+# Cap context length so KV cache fits (model default can exceed GPU memory). Override: VLLM_MAX_MODEL_LEN.
+MAX_LEN="${VLLM_MAX_MODEL_LEN:-32768}"
+[[ "$VLLM_DEVICE" == "cpu" ]] || [[ -n "$LOAD_FORMAT" ]] && MAX_LEN="${VLLM_MAX_MODEL_LEN:-4096}"
+VLLM_ARGS=(
+  $LOAD_FORMAT
+  --trust-remote-code
+  --host 127.0.0.1
+  --port "$PORT"
+  --max-model-len "$MAX_LEN"
+  --served-model-name "$SERVED_MODEL_NAME"
+)
+[[ "$VLLM_DEVICE" == "cuda" ]] && VLLM_ARGS+=(--gpu-memory-utilization "$GPU_UTIL")
+"$ROOT/.venv/bin/vllm" serve "$VLLM_MODEL_PATH" "${VLLM_ARGS[@]}" &
 vllm_pid=$!
 echo "$vllm_pid" > "$PID_FILE"
 trap 'kill "$vllm_pid" 2>/dev/null; rm -f "$PID_FILE"; exit' INT TERM
