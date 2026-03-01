@@ -9,70 +9,9 @@
 
 ---
 
-## The problem
+## Why this exists
 
-The goal of this project is simple: **address the pain of sysadmins and DevOps working in high-security, air-gapped environments.**
-
-In many classified or high-security organizations, ops and deployment work happens in **air-gapped** networks. In the strictest sites, **no phones, laptops, or other personal devices** are allowed inside the secure area—and there’s no way to look things up online.
-
-Doing ops in that context is painful:
-
-- **No browsing docs**
-- **No quick Google or Stack Overflow**
-- **No asking an online AI**
-- Kubernetes and enterprise middleware deployments are **highly customized**—long commands, lots of flags, complex configs
-- Deploying a K8s cluster or debugging an enterprise app often means typing long, easy-to-get-wrong commands and YAML
-- You either **memorize everything** or **print cheat sheets** and bring them in—**inefficient and error-prone**
-
-**What if you had a first-class coding agent—the same kind that uses cloud APIs—but running entirely on the machine in front of you, with zero network?**
-
----
-
-## So we built this
-
-We deliver a **portable, offline Agent**.
-
-You **copy it offline** onto the workspace machine or server, and you get:
-
-- **Runs in a fully closed, air-gapped environment**
-- **Local CPU inference** (works without a GPU)
-- **High-quality agent capabilities** (Codex-level code generation and ops)
-- **System deployment, configuration, ops, and troubleshooting** in one flow
-
-**No internet. No cloud dependency.**
-
----
-
-## Use it the natural way
-
-Before, you’d type something like:
-
-```bash
-kubectl get pods --namespace xxx --selector xxx --output jsonpath=...
-```
-
-Long, easy to get wrong.
-
-Now you say one sentence in **plain language**:
-
-```bash
-./run-codex.sh exec "Show me all unhealthy Pods in namespace foo"
-```
-
-The air-gapped Agent generates the full command, runs it, and can analyze the output and suggest next steps.
-
----
-
-## Core value
-
-- ✅ **Fully offline**
-- ✅ **Built for high-security environments**
-- ✅ **Higher ops efficiency**
-- ✅ **No need to memorize complex commands**
-- ✅ **Fewer human errors**
-- ✅ **Covers deployment, config, debug, and troubleshooting**
-
-**In short:** In a place with no network, no devices, and no way to look things up—**it’s your “offline ops expert” in a folder.**
+Air-gapped ops: no internet, no devices, no docs, no AI. Long K8s commands and configs—memorize or print cheat sheets. Slow and error-prone. **Copy one folder in**; run a Codex-level agent offline. Say “show me unhealthy Pods in namespace X”—it generates the command, runs it, suggests next steps. No internet, no cloud. **In a no-network environment, it’s your offline ops expert.**
 
 ---
 
