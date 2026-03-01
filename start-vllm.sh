@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# Start vLLM serving Nanbeige4.1-3B. Run in one terminal; then use run-codex.sh in another.
-# Default port 28080 to avoid conflicts. Override with VLLM_PORT if needed.
+# Start vLLM serving the model chosen at bootstrap. Run in one terminal; then use run-codex.sh in another.
+# Default port 28080. Override: VLLM_PORT, VLLM_DEVICE=cpu|cuda, VLLM_GPU_MEMORY_UTILIZATION.
 #
-# OOM avoidance (see docs.vllm.ai configuration/engine_args):
-#   --max-model-len auto   : vLLM picks the largest context length that fits in GPU memory.
-#   --gpu-memory-utilization : Fraction of GPU memory to use (default 0.85). Lower if OOM.
-# Override: VLLM_GPU_MEMORY_UTILIZATION=0.75 ./start-vllm.sh
+# VLLM_DEVICE: "cuda" (default) or "cpu". For CPU, no GPU is used (slower).
+# OOM: VLLM_GPU_MEMORY_UTILIZATION=0.75 or --max-model-len 4096 in script.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PORT="${VLLM_PORT:-28080}"
 GPU_UTIL="${VLLM_GPU_MEMORY_UTILIZATION:-0.85}"
-MODEL_DIR="$ROOT/models/Nanbeige4.1-3B"
+VLLM_DEVICE="${VLLM_DEVICE:-cuda}"
+if [[ ! -f "$ROOT/.codex/model_info" ]]; then
+  echo "No .codex/model_info. Run ./bootstrap.sh first." >&2
+  exit 1
+fi
+source "$ROOT/.codex/model_info"
 if [[ ! -d "$MODEL_DIR" ]]; then
   echo "Model not found at $MODEL_DIR. Run ./bootstrap.sh first (on a machine with internet)." >&2
   exit 1
@@ -34,13 +37,22 @@ if [[ -r "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 mkdir -p "$ROOT/.codex"
+# CPU: hide GPUs so vLLM uses CPU backend
+if [[ "$VLLM_DEVICE" == "cpu" ]]; then
+  export CUDA_VISIBLE_DEVICES=""
+fi
+LOAD_FORMAT=""
+if compgen -G "$MODEL_DIR/*.gguf" >/dev/null 2>&1; then
+  LOAD_FORMAT="--load-format gguf"
+fi
 "$ROOT/.venv/bin/vllm" serve "$MODEL_DIR" \
+  $LOAD_FORMAT \
   --trust-remote-code \
   --host 127.0.0.1 \
   --port "$PORT" \
   --max-model-len auto \
   --gpu-memory-utilization "$GPU_UTIL" \
-  --served-model-name Nanbeige4.1-3B &
+  --served-model-name "$SERVED_MODEL_NAME" &
 vllm_pid=$!
 echo "$vllm_pid" > "$PID_FILE"
 trap 'kill "$vllm_pid" 2>/dev/null; rm -f "$PID_FILE"; exit' INT TERM

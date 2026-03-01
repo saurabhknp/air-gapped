@@ -9,14 +9,16 @@ if ! curl -sf "http://127.0.0.1:$PORT/v1/models" >/dev/null 2>&1; then
   exit 1
 fi
 echo "Listing models (GET http://127.0.0.1:$PORT/v1/models)..."
+MODEL_FOR_TEST="Nanbeige4.1-3B"
+[[ -f "$ROOT/.codex/model_info" ]] && source "$ROOT/.codex/model_info" && MODEL_FOR_TEST="$SERVED_MODEL_NAME"
 curl -s "http://127.0.0.1:$PORT/v1/models" | head -50
 echo ""
 echo "Chat completion (POST /v1/chat/completions)..."
 curl -sf "http://127.0.0.1:$PORT/v1/chat/completions" \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "Nanbeige4.1-3B",
-    "messages": [{"role": "user", "content": "hi"}],
-    "max_tokens": 64
-  }' | head -20
+  -d "{
+    \"model\": \"$MODEL_FOR_TEST\",
+    \"messages\": [{\"role\": \"user\", \"content\": \"hi\"}],
+    \"max_tokens\": 64
+  }" | head -20
 echo ""

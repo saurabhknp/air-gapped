@@ -23,20 +23,30 @@ uv pip install --quiet vllm
 # Optional: vLLM with specific CUDA/ROCm: uv pip install --quiet vllm --torch-backend=auto
 echo "[bootstrap] Venv ready (huggingface_hub, vllm)"
 
-# 3. Model
-MODEL_DIR="$ROOT/models/Nanbeige4.1-3B"
+# 3. Model (default: Nanbeige/Nanbeige4.1-3B; set HF_MODEL_REPO_ID or pass preset: 1|nanbeige, 2|gguf, or any HF repo_id)
+HF_MODEL_REPO_ID="${HF_MODEL_REPO_ID:-Nanbeige/Nanbeige4.1-3B}"
+case "${1:-}" in
+  1|nanbeige) HF_MODEL_REPO_ID="Nanbeige/Nanbeige4.1-3B" ;;
+  2|gguf)     HF_MODEL_REPO_ID="Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF" ;;
+  *)          [[ -n "${1:-}" ]] && HF_MODEL_REPO_ID="$1" ;;
+esac
+MODEL_NAME="${HF_MODEL_REPO_ID##*/}"
+MODEL_DIR="$ROOT/models/$MODEL_NAME"
 if [[ ! -d "$MODEL_DIR" ]] || [[ -z "$(ls -A "$MODEL_DIR" 2>/dev/null)" ]]; then
-  echo "[bootstrap] Downloading Nanbeige/Nanbeige4.1-3B ..."
-  "$ROOT/.venv/bin/python" scripts/download_model.py "$ROOT"
+  echo "[bootstrap] Downloading $HF_MODEL_REPO_ID ..."
+  "$ROOT/.venv/bin/python" scripts/download_model.py "$ROOT" "$HF_MODEL_REPO_ID"
 else
   echo "[bootstrap] Model already present at $MODEL_DIR"
 fi
 
-# 4. Codex config (proxy provider + default model for local vLLM)
+# 4. Codex config and model info for start-vllm
 mkdir -p "$ROOT/.codex"
 [[ -f "$ROOT/scripts/codex-config.toml.template" ]] || { echo "[bootstrap] ERROR: scripts/codex-config.toml.template not found." >&2; exit 1; }
 PORT="${VLLM_PORT:-28080}"
-sed "s/__VLLM_PORT__/$PORT/g" "$ROOT/scripts/codex-config.toml.template" > "$ROOT/.codex/config.toml"
-echo "[bootstrap] .codex/config.toml installed (model_provider=proxy, port=$PORT)"
+sed -e "s/__VLLM_PORT__/$PORT/g" -e "s/__MODEL_NAME__/$MODEL_NAME/g" "$ROOT/scripts/codex-config.toml.template" > "$ROOT/.codex/config.toml"
+# Quote so paths with spaces work when sourced
+echo "MODEL_DIR=\"$MODEL_DIR\"" > "$ROOT/.codex/model_info"
+echo "SERVED_MODEL_NAME=\"$MODEL_NAME\"" >> "$ROOT/.codex/model_info"
+echo "[bootstrap] .codex/config.toml and .codex/model_info installed (model=$MODEL_NAME, port=$PORT)"
 
-echo "[bootstrap] Done. Copy this directory to air-gapped hosts; run ./start-vllm.sh then ./run-codex.sh"
+echo "[bootstrap] Done. Next: ./start-vllm.sh (then in another terminal: ./run-codex.sh exec \"Your prompt\")"

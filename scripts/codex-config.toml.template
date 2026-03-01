@@ -1,5 +1,5 @@
-# Codex config for local vLLM (air-gapped). Bootstrap sets __VLLM_PORT__ from VLLM_PORT (default 28080).
-model = "Nanbeige4.1-3B"
+# Codex config for local vLLM (air-gapped). Bootstrap sets __VLLM_PORT__ and __MODEL_NAME__.
+model = "__MODEL_NAME__"
 model_provider = "proxy"
 
 [model_providers.proxy]

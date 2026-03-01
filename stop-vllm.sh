@@ -13,8 +13,12 @@ if [[ -r "$PID_FILE" ]]; then
   rm -f "$PID_FILE"
 fi
 if [[ -z "$stopped" ]]; then
-  MODEL_DIR="$ROOT/models/Nanbeige4.1-3B"
-  pids=$(pgrep -f "vllm serve.*$MODEL_DIR" 2>/dev/null || true)
+  if [[ -f "$ROOT/.codex/model_info" ]]; then
+    source "$ROOT/.codex/model_info"
+    pids=$(pgrep -f "vllm serve.*$MODEL_DIR" 2>/dev/null || true)
+  else
+    pids=$(pgrep -f "vllm serve.*$ROOT/models" 2>/dev/null || true)
+  fi
   if [[ -n "$pids" ]]; then
     for p in $pids; do kill "$p" 2>/dev/null || true; done
     stopped="$pids"
