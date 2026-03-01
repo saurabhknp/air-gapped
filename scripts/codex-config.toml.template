@@ -1,8 +1,8 @@
-# Codex config for local vLLM (air-gapped). Bootstrap sets __VLLM_PORT__ and __MODEL_NAME__.
+# Codex config for local llama.cpp server (air-gapped). Bootstrap sets __PORT__ and __MODEL_NAME__.
 model = "__MODEL_NAME__"
 model_provider = "proxy"
 
 [model_providers.proxy]
-name = "vLLM"
-base_url = "http://127.0.0.1:__VLLM_PORT__/v1"
+name = "llama.cpp"
+base_url = "http://127.0.0.1:__PORT__/v1"
 wire_api = "responses"

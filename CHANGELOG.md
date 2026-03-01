@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [0.4.0] - 2026-03-01
+
+### Added
+
+- **Prebuilt llama.cpp binary:** Bootstrap downloads the latest Linux x64 CPU tarball from [GitHub releases](https://github.com/ggml-org/llama.cpp/releases) instead of building from source. No CMake/compiler required. Use `LLAMA_BIN_OS_ARCH=macos-arm64` or `macos-x64` on macOS.
+- **scripts/download_llama_bin.sh:** Fetches release tag and `llama-<tag>-bin-ubuntu-x64.tar.gz`, extracts to `llama_bin/`.
+
+### Fixed
+
+- **download_llama_bin.sh:** Skip `find` when `llama_bin/` does not exist (avoids exit under `set -e`). More robust tag extraction from GitHub API (grep + sed). User-Agent header for requests.
+- **run_tests.sh:** Failure-path checks now capture command output before grepping so "not reachable" and "config.toml not found" are detected reliably. Added 2s sleep after server stop. Codex exec test treated as SKIP when API returns 400 "tool type must be 'function'" (known compatibility).
+
+### Changed
+
+- **Bootstrap:** Uses downloaded binary; `make clean` removes `llama_bin/` (no `llama.cpp/`).
+- **Docs:** README and VERSIONS.md updated for binary download and `llama_bin/`.
+
+---
+
+## [0.3.0] - 2026-03-01
+
+### Changed (breaking)
+
+- **Replaced vLLM with llama.cpp:** Inference is now done by [llama.cpp](https://github.com/ggml-org/llama.cpp) only. **GPU support removed**; runtime is CPU-only.
+- **Bootstrap:** Installs minimal venv (huggingface_hub for model download), downloads default GGUF model. llama.cpp is provided via prebuilt binary (see 0.4.0).
+- **Scripts:** `start-vllm.sh` / `stop-vllm.sh` replaced by `start-llama-server.sh` / `stop-llama-server.sh`. `test-vllm-api.sh` replaced by `test-api.sh`.
+- **Config:** `.codex/config.toml` proxy name is now "llama.cpp". Port env is `LLAMA_PORT` (default 28080).
+- **Makefile:** `make deps` no longer accepts GPU; `make upgrade` only upgrades huggingface_hub.
+
+### Removed
+
+- vLLM, PyTorch, CUDA, and all GPU-related options and documentation.
+- `scripts/run_vllm_serve.py` and tokenizer-only download logic (llama.cpp uses tokenizer embedded in GGUF).
+
+### Documentation
+
+- README and README.zh-CN updated for llama.cpp, CPU-only, and new commands.
+- docs/README.md rewritten for llama.cpp architecture and bootstrap.
+
+---
+
 ## [0.2.0] - 2026-03-01
 
 ### Added

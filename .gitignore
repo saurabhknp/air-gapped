@@ -2,6 +2,8 @@
 models/
 .venv/
 .codex/
+llama_bin/
+llama.cpp/
 bin/
 
 # Legacy Codex state (when CODEX_HOME was project root; now only .codex/ is used)

@@ -4,20 +4,16 @@ This file records the **current version baseline** used and tested for this proj
 
 ---
 
-## vLLM
+## llama.cpp
 
 | Item | Value |
 |------|--------|
-| **Baseline version** | **0.16.0** |
-| **PyPI** | https://pypi.org/project/vllm/ |
-| **Latest release** | https://github.com/vllm-project/vllm/releases/latest |
-| **Documentation** | https://docs.vllm.ai/en/latest/ |
-| **Quickstart** | https://docs.vllm.ai/en/latest/getting_started/quickstart.html |
-| **Installation** | https://docs.vllm.ai/en/latest/getting_started/installation.html |
+| **Source** | https://github.com/ggml-org/llama.cpp |
+| **Binary** | Prebuilt from [releases](https://github.com/ggml-org/llama.cpp/releases); default asset: `llama-<tag>-bin-ubuntu-x64.tar.gz` (Linux x64 CPU). Extracted to `llama_bin/`. |
+| **Server binary** | `llama_bin/llama-<tag>/llama-server` (path stored in `.codex/model_info` as `LLAMA_SERVER`). |
+| **Server docs** | https://github.com/ggml-org/llama.cpp/tree/master/tools/server |
 
-**Why 0.16+:** vLLM 0.16+ exposes the **Responses API** (`/v1/responses`), which Codex CLI uses when `wire_api = "responses"` in `.codex/config.toml`. Older vLLM only had `/v1/chat/completions` and would return 404 for Codex.
-
-**Project constraint:** `vllm>=0.16.0` in `pyproject.toml` and `bootstrap.sh`.
+**Why llama.cpp:** Lightweight, C++ inference with OpenAI-compatible HTTP API. We download the CPU x64 Linux binary; no build or GPU required.
 
 ---
 
@@ -36,14 +32,15 @@ This file records the **current version baseline** used and tested for this proj
 | **Advanced config** | https://developers.openai.com/codex/config-advanced |
 | **Config reference** | https://developers.openai.com/codex/config-reference |
 
-Codex is **not** a Python dependency of this repo; it is installed separately (Cursor or npm) and must be on `PATH`. This project only configures Codex via `CODEX_HOME` and `.codex/config.toml` to point at the local vLLM server.
+Codex is **not** a Python dependency of this repo; it is installed separately (Cursor or npm) and must be on `PATH`. This project configures Codex via `CODEX_HOME` and `.codex/config.toml` to point at the local llama-server (OpenAI-compatible API).
 
 ---
 
-## Other deps (from pyproject.toml)
+## Other deps
 
-- **huggingface_hub** ≥ 0.20.0 — used by `scripts/download_model.py` to fetch models.
+- **huggingface_hub** ≥ 0.20.0 — used by `scripts/download_model.py` to fetch GGUF models. Installed in project `.venv` (bootstrap).
+- **Build tools (bootstrap):** `git`, `cmake`, C++ compiler (e.g. `g++`, `clang`).
 
 ---
 
-*Last updated: 2026-02-28 (baseline: vLLM 0.16.0, Codex CLI 0.106.0).*
+*Last updated: 2026-03-01 (baseline: llama.cpp from source, CPU-only; Codex CLI 0.106.0).*
