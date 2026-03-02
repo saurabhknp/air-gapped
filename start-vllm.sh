@@ -51,26 +51,42 @@ if [[ -f "$ROOT/.codex/config.toml" ]]; then
   sed -i.bak "s/^model = .*/model = \"$MODEL_FOR_REQUEST\"/" "$ROOT/.codex/config.toml" 2>/dev/null || true
 fi
 
-# Auto-detect GPU memory and set max-model-len accordingly (override: VLLM_MAX_MODEL_LEN)
-GPU_MEM_UTIL="${VLLM_GPU_MEM_UTIL:-0.95}"
+# GPU resource defaults (override: VLLM_GPU_MEM_UTIL, VLLM_MAX_MODEL_LEN, VLLM_MAX_NUM_SEQS)
+# 0.85 leaves headroom for CUDA graph compilation and other processes
+GPU_MEM_UTIL="${VLLM_GPU_MEM_UTIL:-0.85}"
+export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}"
 MAX_SEQS="${VLLM_MAX_NUM_SEQS:-1}"
+# Auto-detect max context from GPU memory, but cap at a practical default.
+# Models may advertise huge context (e.g. 256K) that won't fit; 32768 is a safe default.
 if [[ -n "${VLLM_MAX_MODEL_LEN:-}" ]]; then
   MAX_LEN_ARG=(--max-model-len "$VLLM_MAX_MODEL_LEN")
 else
-  # Let vLLM auto-detect from GPU memory; it will pick the largest context that fits
-  MAX_LEN_ARG=()
-fi
-
-# GGUF models need explicit tokenizer path (no tokenizer in the GGUF repo)
-TOKENIZER_ARG=()
-if [[ -n "${VLLM_TOKENIZER:-}" ]] && [[ -d "${VLLM_TOKENIZER}" ]]; then
-  TOKENIZER_ARG=(--tokenizer "$VLLM_TOKENIZER")
+  # Auto-detect: query total GPU memory and set context proportionally
+  GPU_MEM_MB=$("$ROOT/.venv/bin/python" -c "
+import torch
+if torch.cuda.is_available():
+    print(int(torch.cuda.get_device_properties(0).total_mem / 1048576))
+else:
+    print(0)
+" 2>/dev/null || echo "0")
+  if (( GPU_MEM_MB >= 49152 )); then   # >=48GB
+    AUTO_CTX=131072
+  elif (( GPU_MEM_MB >= 24576 )); then  # >=24GB
+    AUTO_CTX=65536
+  elif (( GPU_MEM_MB >= 16384 )); then  # >=16GB
+    AUTO_CTX=32768
+  elif (( GPU_MEM_MB >= 8192 )); then   # >=8GB
+    AUTO_CTX=16384
+  else
+    AUTO_CTX=8192
+  fi
+  MAX_LEN_ARG=(--max-model-len "$AUTO_CTX")
 fi
 
 VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
 EXTRA=()
 [[ -n "$VLLM_EXTRA_ARGS" ]] && read -ra EXTRA <<< "$VLLM_EXTRA_ARGS"
-echo "Starting vLLM (GPU) on port $PORT with model: $VLLM_MODEL (max_seqs=$MAX_SEQS, gpu_mem=$GPU_MEM_UTIL, max_model_len=${VLLM_MAX_MODEL_LEN:-auto})"
+echo "Starting vLLM (GPU) on port $PORT with model: $VLLM_MODEL (max_seqs=$MAX_SEQS, gpu_mem=$GPU_MEM_UTIL, max_model_len=${MAX_LEN_ARG[1]:-auto})"
 "$ROOT/.venv/bin/vllm" serve "$VLLM_MODEL" \
   --host 127.0.0.1 \
   --port "$PORT" \
@@ -78,7 +94,6 @@ echo "Starting vLLM (GPU) on port $PORT with model: $VLLM_MODEL (max_seqs=$MAX_S
   --max-num-seqs "$MAX_SEQS" \
   --gpu-memory-utilization "$GPU_MEM_UTIL" \
   "${MAX_LEN_ARG[@]}" \
-  "${TOKENIZER_ARG[@]}" \
   "${EXTRA[@]}" \
   &
 vllm_pid=$!
@@ -102,14 +117,10 @@ for i in $(seq 1 120); do
   fi
 done
 
-# Query vLLM for actual max_model_len and sync Codex config
-if [[ -f "$ROOT/.codex/config.toml" ]]; then
-  VLLM_CTX=$(curl -sf "http://127.0.0.1:$PORT/v1/models" 2>/dev/null \
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',[{}])[0].get('max_model_len', d.get('data',[{}])[0].get('meta',{}).get('n_ctx_train',8192)))" 2>/dev/null || echo "")
-  if [[ -n "$VLLM_CTX" ]] && [[ "$VLLM_CTX" =~ ^[0-9]+$ ]]; then
-    sed -i.bak "s/^model_context_window = .*/model_context_window = $VLLM_CTX/" "$ROOT/.codex/config.toml" 2>/dev/null || true
-    echo "Synced model_context_window = $VLLM_CTX to .codex/config.toml"
-  fi
+# Sync Codex config with the actual context size we're using
+if [[ -f "$ROOT/.codex/config.toml" ]] && [[ -n "${MAX_LEN_ARG[1]:-}" ]]; then
+  sed -i.bak "s/^model_context_window = .*/model_context_window = ${MAX_LEN_ARG[1]}/" "$ROOT/.codex/config.toml" 2>/dev/null || true
+  echo "Synced model_context_window = ${MAX_LEN_ARG[1]} to .codex/config.toml"
 fi
 
 # Start codex-proxy

@@ -52,7 +52,7 @@ This folder holds technical reference for the **Air-Gapped Codex + llama.cpp** p
 Bootstrap writes:
 
 - `.codex/config.toml` — model, provider `local`, base URL pointing at codex-proxy (port from `CODEX_PROXY_PORT` or 28081), profile `local` with `web_search=disabled`. Includes `model_context_window` (auto-synced by start scripts to match the actual backend context size) and `model_reasoning_effort = "low"` (appropriate for 3B models).
-- `.codex/model_info` — `MODEL_DIR`, `SERVED_MODEL_NAME`, `LLAMA_SERVER` for CPU; when `USE_VLLM=1`, also `VLLM_MODEL`, `VLLM_SERVED_NAME`, and `VLLM_TOKENIZER` (for GGUF models).
+- `.codex/model_info` — `MODEL_DIR`, `SERVED_MODEL_NAME`, `LLAMA_SERVER` for CPU; when `USE_VLLM=1`, also `VLLM_MODEL`, `VLLM_SERVED_NAME`.
 
 ---
 
@@ -79,7 +79,7 @@ Bootstrap writes:
 ## Server and runtime
 
 - **CPU (default):** llama.cpp; no GPU. Thread count auto-detected from `nproc` (override: `LLAMA_THREADS`). Context size auto-detected from available RAM: 2048–32768 (override: `LLAMA_CTX_SIZE`). Start with `./start-llama-server.sh`.
-- **GPU (optional):** vLLM for faster inference. Default model: Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF (same as CPU). Bootstrap with `USE_VLLM=1 ./bootstrap.sh`. Start with `./start-vllm.sh` (defaults: 1 concurrent, auto-detected context from GPU memory, gpu_memory_utilization=0.95). Stop with `./stop-vllm.sh`. Same port layout (backend 28080, proxy 28081). Override: `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEM_UTIL`, `VLLM_MAX_NUM_SEQS`.
+- **GPU (optional):** vLLM for faster inference. Default model: Nanbeige/Nanbeige4.1-3B (HF safetensors, same model family as CPU GGUF). Bootstrap with `USE_VLLM=1 ./bootstrap.sh`. Start with `./start-vllm.sh` (defaults: 1 concurrent, auto-detected context from GPU memory, gpu_memory_utilization=0.85). Stop with `./stop-vllm.sh`. Same port layout (backend 28080, proxy 28081). Override: `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEM_UTIL`, `VLLM_MAX_NUM_SEQS`.
 - **Port / context / threads:** `LLAMA_PORT` (or `VLLM_PORT` for vLLM), `LLAMA_CTX_SIZE`, `LLAMA_THREADS`, `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEM_UTIL` when starting the server.
 
 ---

@@ -139,9 +139,9 @@ If vLLM hits **CUDA out of memory**, lower context or VRAM: `VLLM_MAX_MODEL_LEN=
 
 - Then start the server as usual: `./start-llama-server.sh`. The new model is loaded from `models/<repo-name>/`.
 
-**GPU (vLLM) — same default model:**
+**GPU (vLLM) — HuggingFace format (same model family):**
 
-- Default vLLM model (when you used `USE_VLLM=1`): [Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF](https://huggingface.co/Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF) (same as CPU). Started with max 1 concurrent, auto-detected context length, high VRAM use (0.95). Tokenizer is automatically downloaded from the base model.
+- Default vLLM model (when you used `USE_VLLM=1`): [Nanbeige/Nanbeige4.1-3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B) (full-precision, same model family as the CPU GGUF). Started with max 1 concurrent, auto-detected context length, high VRAM use (0.95).
 - To use another Hugging Face model, re-run bootstrap with vLLM and set `VLLM_MODEL`:
 
   ```bash
@@ -150,7 +150,7 @@ If vLLM hits **CUDA out of memory**, lower context or VRAM: `VLLM_MAX_MODEL_LEN=
 
 - Then start vLLM: `./start-vllm.sh`. vLLM will use the model specified in `.codex/model_info` (`VLLM_MODEL`).
 
-**Note:** CPU and GPU default to the same GGUF model. You can override `VLLM_MODEL` to use a different HF model for GPU if desired.
+**Note:** CPU uses GGUF (quantized, for llama.cpp); GPU uses HuggingFace safetensors (full-precision, for vLLM). Both are Nanbeige4.1-3B — same model family, different formats optimized for each runtime. On GPU, quantization isn't needed.
 
 ---
 

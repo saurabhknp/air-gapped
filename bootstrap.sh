@@ -59,32 +59,17 @@ echo "MODEL_DIR=\"$MODEL_DIR\"" > "$ROOT/.codex/model_info"
 echo "SERVED_MODEL_NAME=\"$MODEL_NAME\"" >> "$ROOT/.codex/model_info"
 echo "LLAMA_SERVER=\"$LLAMA_SERVER\"" >> "$ROOT/.codex/model_info"
 
-# Optional: vLLM (GPU) support. When USE_VLLM=1, install vllm and set VLLM_MODEL for start-vllm.sh
+# Optional: vLLM (GPU) support. When USE_VLLM=1, install vllm and set VLLM_MODEL for start-vllm.sh.
+# vLLM requires HuggingFace format (config.json + safetensors), NOT GGUF. Default: the base model
+# that the GGUF was quantized from. On GPU, full-precision is fine (no quantization needed).
 if [[ "${USE_VLLM:-0}" == "1" ]]; then
   echo "[bootstrap] Installing vLLM (GPU) ..."
   uv pip install --quiet "vllm>=0.6.0"
-  VLLM_MODEL="${VLLM_MODEL:-$HF_MODEL_REPO_ID}"
+  VLLM_MODEL="${VLLM_MODEL:-Nanbeige/Nanbeige4.1-3B}"
   VLLM_SERVED_NAME="${VLLM_MODEL##*/}"
-  # GGUF models need a tokenizer from the base model; download it if not present
-  VLLM_TOKENIZER=""
-  if [[ "$VLLM_MODEL" == *GGUF* || "$VLLM_MODEL" == *gguf* ]]; then
-    BASE_MODEL="${VLLM_BASE_MODEL:-Nanbeige/Nanbeige4.1-3B}"
-    BASE_MODEL_NAME="${BASE_MODEL##*/}"
-    BASE_MODEL_DIR="$ROOT/models/$BASE_MODEL_NAME"
-    if [[ ! -d "$BASE_MODEL_DIR" ]] || [[ ! -f "$BASE_MODEL_DIR/tokenizer.json" ]]; then
-      echo "[bootstrap] Downloading tokenizer from $BASE_MODEL for GGUF model ..."
-      "$ROOT/.venv/bin/python" -c "
-from huggingface_hub import snapshot_download
-snapshot_download('$BASE_MODEL', local_dir='$BASE_MODEL_DIR',
-    allow_patterns=['tokenizer*', 'special_tokens*', 'added_tokens*', 'config.json', 'generation_config.json'])
-"
-    fi
-    VLLM_TOKENIZER="$BASE_MODEL_DIR"
-  fi
   echo "VLLM_MODEL=\"$VLLM_MODEL\"" >> "$ROOT/.codex/model_info"
   echo "VLLM_SERVED_NAME=\"$VLLM_SERVED_NAME\"" >> "$ROOT/.codex/model_info"
-  [[ -n "$VLLM_TOKENIZER" ]] && echo "VLLM_TOKENIZER=\"$VLLM_TOKENIZER\"" >> "$ROOT/.codex/model_info"
-  echo "[bootstrap] vLLM ready. Model: $VLLM_MODEL. Start with: ./start-vllm.sh"
+  echo "[bootstrap] vLLM ready. Model: $VLLM_MODEL (GPU, HF format). Start with: ./start-vllm.sh"
 fi
 
 echo "[bootstrap] .codex/config.toml and .codex/model_info installed (model=$MODEL_NAME, proxy_port=$PROXY_PORT)"
