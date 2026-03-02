@@ -57,8 +57,84 @@ if [[ -x "$ROOT/codex-proxy/codex-proxy" ]]; then
   done
 fi
 
-# 4) API test
+# 4) API test (direct backend)
 run ./test-api.sh
+
+# 4b) Proxy API tests (Responses API + streaming through codex-proxy)
+if curl -sf "http://127.0.0.1:$PROXY_PORT/health" >/dev/null 2>&1; then
+  echo "--- Proxy: GET /v1/models"
+  if curl -sf "http://127.0.0.1:$PROXY_PORT/v1/models" >/dev/null 2>&1; then
+    echo "  OK"
+  else
+    echo "  FAIL"; FAILED=1
+  fi
+
+  source "$ROOT/.codex/model_info"
+  _model="${SERVED_MODEL_NAME:-Nanbeige4.1-3B-Q4_K_M-GGUF}"
+
+  echo "--- Proxy: POST /v1/chat/completions (non-streaming passthrough)"
+  _proxy_chat="$ROOT/.codex/test_proxy_chat.json"
+  if curl -sf --max-time 120 "http://127.0.0.1:$PROXY_PORT/v1/chat/completions" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"$_model\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello\"}],\"max_tokens\":32}" \
+    -o "$_proxy_chat" 2>/dev/null; then
+    echo "  OK"
+  else
+    echo "  FAIL"; FAILED=1
+  fi
+
+  echo "--- Proxy: POST /v1/responses (non-streaming, Responses API)"
+  _proxy_resp="$ROOT/.codex/test_proxy_responses.json"
+  if curl -sf --max-time 120 "http://127.0.0.1:$PROXY_PORT/v1/responses" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"$_model\",\"input\":\"Say hello\",\"max_output_tokens\":32}" \
+    -o "$_proxy_resp" 2>/dev/null; then
+    if grep -q '"output"' "$_proxy_resp" 2>/dev/null; then
+      echo "  OK (Responses API format verified)"
+    else
+      echo "  FAIL (response missing 'output' field)"
+      FAILED=1
+    fi
+  else
+    echo "  FAIL"; FAILED=1
+  fi
+
+  echo "--- Proxy: POST /v1/responses (streaming, Responses API)"
+  _proxy_stream="$ROOT/.codex/test_proxy_responses_stream.txt"
+  if curl -sf --max-time 120 "http://127.0.0.1:$PROXY_PORT/v1/responses" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"$_model\",\"input\":\"Say hello\",\"max_output_tokens\":32,\"stream\":true}" \
+    -o "$_proxy_stream" 2>/dev/null; then
+    if grep -q 'response.output_text.delta' "$_proxy_stream" 2>/dev/null && \
+       grep -q 'response.completed' "$_proxy_stream" 2>/dev/null; then
+      echo "  OK (streaming events: delta + completed)"
+    else
+      echo "  FAIL (missing expected streaming events)"
+      FAILED=1
+    fi
+  else
+    echo "  FAIL"; FAILED=1
+  fi
+
+  echo "--- Proxy: POST /v1/chat/completions (streaming passthrough)"
+  _proxy_stream_chat="$ROOT/.codex/test_proxy_chat_stream.txt"
+  if curl -sf --max-time 120 "http://127.0.0.1:$PROXY_PORT/v1/chat/completions" \
+    -H "Content-Type: application/json" \
+    -d "{\"model\":\"$_model\",\"messages\":[{\"role\":\"user\",\"content\":\"Say hello\"}],\"max_tokens\":32,\"stream\":true}" \
+    -o "$_proxy_stream_chat" 2>/dev/null; then
+    if grep -q '"delta"' "$_proxy_stream_chat" 2>/dev/null; then
+      echo "  OK (streaming chat completions)"
+    else
+      echo "  FAIL (missing streaming delta)"
+      FAILED=1
+    fi
+  else
+    echo "  FAIL"; FAILED=1
+  fi
+else
+  echo "--- Proxy not running on $PROXY_PORT; skipping proxy tests"
+  FAILED=1
+fi
 
 # 5) Codex exec (if codex on PATH; uses proxy when config base_url points to proxy)
 if command -v codex &>/dev/null; then

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Start llama.cpp server (CPU only) for the model chosen at bootstrap. Keep terminal open; use run-codex.sh in another.
 #
-# Override: LLAMA_PORT (default 28080), LLAMA_CTX_SIZE (default 8192), LLAMA_THREADS (unset = auto).
+# Override: LLAMA_PORT (default 28080), LLAMA_CTX_SIZE (auto from RAM), LLAMA_THREADS (auto from nproc).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PORT="${LLAMA_PORT:-28080}"
 if [[ ! -f "$ROOT/.codex/model_info" ]]; then
-  echo "No .codex/model_info. Run ./bootstrap.sh first." >&2
+  echo "No .codex/model_info. Run ./bootstrap.sh first (on a machine with internet)." >&2
+  echo "If this machine has no network, run ./bootstrap.sh on a connected machine, then copy the whole project folder here and run ./start.sh again." >&2
   exit 1
 fi
 source "$ROOT/.codex/model_info"
@@ -39,7 +40,30 @@ if compgen -G "$MODEL_DIR/*.gguf" >/dev/null 2>&1; then
 fi
 [[ -z "$GGUF_PATH" ]] && { echo "No .gguf file in $MODEL_DIR" >&2; exit 1; }
 
-CTX="${LLAMA_CTX_SIZE:-8192}"
+# Auto-detect context size from available RAM (override: LLAMA_CTX_SIZE)
+if [[ -n "${LLAMA_CTX_SIZE:-}" ]]; then
+  CTX="$LLAMA_CTX_SIZE"
+else
+  AVAIL_MB=8192
+  if [[ -r /proc/meminfo ]]; then
+    AVAIL_MB=$(awk '/^MemAvailable:/ {printf "%d", $2/1024}' /proc/meminfo)
+  elif [[ "$(uname -s)" == "Darwin" ]]; then
+    AVAIL_MB=$(( $(sysctl -n hw.memsize 2>/dev/null || echo 8589934592) / 1048576 ))
+  fi
+  if (( AVAIL_MB >= 65536 )); then
+    CTX=32768
+  elif (( AVAIL_MB >= 32768 )); then
+    CTX=16384
+  elif (( AVAIL_MB >= 16384 )); then
+    CTX=8192
+  elif (( AVAIL_MB >= 8192 )); then
+    CTX=4096
+  else
+    CTX=2048
+  fi
+fi
+
+# Auto-detect thread count (override: LLAMA_THREADS)
 THREADS_ARG=()
 if [[ -n "${LLAMA_THREADS:-}" ]]; then
   THREADS_ARG=(-t "$LLAMA_THREADS")
@@ -51,6 +75,7 @@ else
   fi
 fi
 
+echo "Starting llama-server on port $PORT (ctx=$CTX, threads=${THREADS_ARG[1]:-auto}, model=$(basename "$GGUF_PATH"))"
 "$LLAMA_SERVER" -m "$GGUF_PATH" --host 127.0.0.1 --port "$PORT" -c "$CTX" "${THREADS_ARG[@]}" &
 svr_pid=$!
 echo "$svr_pid" > "$PID_FILE"
@@ -70,6 +95,7 @@ if [[ -x "$PROXY_BIN" ]]; then
   echo ""
   echo "Codex proxy running at: http://127.0.0.1:$PROXY_PORT/v1"
   echo "Configure .codex/config.toml: base_url = \"http://127.0.0.1:$PROXY_PORT/v1\""
+  echo "To stop: Ctrl+C in this terminal, or run ./stop.sh in any terminal."
   echo ""
 fi
 

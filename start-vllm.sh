@@ -11,7 +11,8 @@ PORT="${VLLM_PORT:-${LLAMA_PORT:-28080}}"
 PROXY_PORT="${CODEX_PROXY_PORT:-28081}"
 
 if [[ ! -f "$ROOT/.codex/model_info" ]]; then
-  echo "No .codex/model_info. Run ./bootstrap.sh first." >&2
+  echo "No .codex/model_info. Run ./bootstrap.sh first (on a machine with internet)." >&2
+  echo "If this machine has no network, run ./bootstrap.sh on a connected machine, then copy the whole project folder here and run ./start.sh again." >&2
   exit 1
 fi
 source "$ROOT/.codex/model_info"
@@ -50,18 +51,34 @@ if [[ -f "$ROOT/.codex/config.toml" ]]; then
   sed -i.bak "s/^model = .*/model = \"$MODEL_FOR_REQUEST\"/" "$ROOT/.codex/config.toml" 2>/dev/null || true
 fi
 
-# Defaults: 1 concurrent, 100k context (102400 tokens), use most VRAM (0.95). Override with VLLM_EXTRA_ARGS if OOM or model caps lower.
+# Auto-detect GPU memory and set max-model-len accordingly (override: VLLM_MAX_MODEL_LEN)
+GPU_MEM_UTIL="${VLLM_GPU_MEM_UTIL:-0.95}"
+MAX_SEQS="${VLLM_MAX_NUM_SEQS:-1}"
+if [[ -n "${VLLM_MAX_MODEL_LEN:-}" ]]; then
+  MAX_LEN_ARG=(--max-model-len "$VLLM_MAX_MODEL_LEN")
+else
+  # Let vLLM auto-detect from GPU memory; it will pick the largest context that fits
+  MAX_LEN_ARG=()
+fi
+
+# GGUF models need explicit tokenizer path (no tokenizer in the GGUF repo)
+TOKENIZER_ARG=()
+if [[ -n "${VLLM_TOKENIZER:-}" ]] && [[ -d "${VLLM_TOKENIZER}" ]]; then
+  TOKENIZER_ARG=(--tokenizer "$VLLM_TOKENIZER")
+fi
+
 VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:-}"
 EXTRA=()
 [[ -n "$VLLM_EXTRA_ARGS" ]] && read -ra EXTRA <<< "$VLLM_EXTRA_ARGS"
-echo "Starting vLLM (GPU) on port $PORT with model: $VLLM_MODEL (max 1 concurrent, 100k context, gpu_memory_utilization=0.95)"
+echo "Starting vLLM (GPU) on port $PORT with model: $VLLM_MODEL (max_seqs=$MAX_SEQS, gpu_mem=$GPU_MEM_UTIL, max_model_len=${VLLM_MAX_MODEL_LEN:-auto})"
 "$ROOT/.venv/bin/vllm" serve "$VLLM_MODEL" \
   --host 127.0.0.1 \
   --port "$PORT" \
   --served-model-name "$MODEL_FOR_REQUEST" \
-  --max-num-seqs 1 \
-  --max-model-len 102400 \
-  --gpu-memory-utilization 0.95 \
+  --max-num-seqs "$MAX_SEQS" \
+  --gpu-memory-utilization "$GPU_MEM_UTIL" \
+  "${MAX_LEN_ARG[@]}" \
+  "${TOKENIZER_ARG[@]}" \
   "${EXTRA[@]}" \
   &
 vllm_pid=$!
@@ -97,6 +114,7 @@ if [[ -x "$PROXY_BIN" ]]; then
   echo "vLLM:      http://127.0.0.1:$PORT/v1"
   echo "codex-proxy: http://127.0.0.1:$PROXY_PORT/v1"
   echo "Run: ./run-codex.sh exec \"your prompt\""
+  echo "To stop: Ctrl+C in this terminal, or run ./stop.sh in any terminal."
   echo ""
 fi
 

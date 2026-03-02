@@ -15,37 +15,44 @@ This folder holds technical reference for the **Air-Gapped Codex + llama.cpp** p
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  Codex CLI  (CODEX_HOME = project/.codex)                        │
-│  - Profile "local": web_search=disabled (llama-server accepts    │
-│    only type "function" tools)                                   │
+│  - Profile "local": web_search=disabled                          │
 │  - Sends requests to base_url (Responses API: /v1/responses)    │
+└─────────────────────────────┬────────────────────────────────────┘
+                              │  HTTP (127.0.0.1:28081)
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  codex-proxy  (Go, auto-started by start scripts)                │
+│  - Converts Responses API ↔ Chat Completions                    │
+│  - Normalizes tool types for llama-server compatibility          │
+│  - Supports streaming (SSE) and non-streaming                    │
+│  - /health, /v1/models, /v1/responses, /v1/chat/completions     │
 └─────────────────────────────┬────────────────────────────────────┘
                               │  HTTP (127.0.0.1:28080)
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  llama-server  (./start-llama-server.sh)                         │
-│  - llama.cpp HTTP server, CPU-only; has /v1/responses natively   │
-│  - /v1/models, /v1/chat/completions, /v1/responses               │
-│  - Model: GGUF file from .codex/model_info (set by bootstrap)    │
+│  Backend (one of):                                               │
+│  CPU: llama-server (llama.cpp, ./start-llama-server.sh)          │
+│  GPU: vLLM         (./start-vllm.sh)                             │
+│  - /v1/models, /v1/chat/completions                              │
+│  - Model: from .codex/model_info (set by bootstrap)              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Optional:** If you still see 400 `'type' of tool must be 'function'` (e.g. from other tools Codex sends), start with `USE_CODEX_PROXY=1 ./start-llama-server.sh` and point config at the proxy (see README).
-
 - **Bootstrap** (once, on a machine with internet): download prebuilt llama.cpp binary (default: Linux x64 CPU from [releases](https://github.com/ggml-org/llama.cpp/releases)), create `.venv` with huggingface_hub, download GGUF model into `models/<name>`, generate `.codex/config.toml` and `.codex/model_info` (including path to `llama-server`).
-- **Portable copy**: the whole directory (including `models/`, `.venv/`, `.codex/`, `llama_bin/`) is self-contained. No network needed at runtime.
+- **Portable copy**: the whole directory (including `models/`, `.venv/`, `.codex/`, `llama_bin/`, and built `codex-proxy`) is self-contained. Run `./scripts/check-portable.sh` before copying to verify. No network needed at runtime.
 - **Codex** uses `CODEX_HOME` pointing to the project's `.codex`, so config and state stay inside the project.
 
 ---
 
 ## Bootstrap and model choice
 
-- **Default model:** [Nanbeige/Nanbeige4.1-3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B). Set `HF_MODEL_REPO_ID=owner/repo ./bootstrap.sh` to use another repo.
+- **Default CPU model:** [Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF](https://huggingface.co/Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF) (GGUF). Set `HF_MODEL_REPO_ID=owner/repo ./bootstrap.sh` to use another repo.
 - **Binary:** Bootstrap downloads the latest prebuilt tarball (e.g. `llama-<tag>-bin-ubuntu-x64.tar.gz`) into `llama_bin/`. Use `LLAMA_BIN_OS_ARCH=macos-arm64` or `macos-x64` on macOS.
 
 Bootstrap writes:
 
 - `.codex/config.toml` — model, provider `local`, base URL pointing at codex-proxy (port from `CODEX_PROXY_PORT` or 28081) so Codex gets correct tool handling, profile `local` with `web_search=disabled`.
-- `.codex/model_info` — `MODEL_DIR`, `SERVED_MODEL_NAME`, `LLAMA_SERVER` for CPU; when `USE_VLLM=1`, also `VLLM_MODEL`, `VLLM_SERVED_NAME`.
+- `.codex/model_info` — `MODEL_DIR`, `SERVED_MODEL_NAME`, `LLAMA_SERVER` for CPU; when `USE_VLLM=1`, also `VLLM_MODEL`, `VLLM_SERVED_NAME`, and `VLLM_TOKENIZER` (for GGUF models).
 
 ---
 
@@ -55,8 +62,11 @@ Bootstrap writes:
 
 | Backend | Bootstrap (once) | Start | Stop |
 |---------|------------------|--------|------|
+| Unified (auto) | — | `./start.sh` | `./stop.sh` |
 | CPU (llama.cpp) | `./bootstrap.sh` | `./start-llama-server.sh` | `./stop-llama-server.sh` |
 | GPU (vLLM) | `USE_VLLM=1 ./bootstrap.sh` | `./start-vllm.sh` | `./stop-vllm.sh` |
+
+`./start.sh` uses vLLM if `VLLM_MODEL` is set in `.codex/model_info`, otherwise llama-server.
 
 **Switch model (CPU):** Re-bootstrap with a different GGUF repo: `HF_MODEL_REPO_ID=owner/repo ./bootstrap.sh`. Then `./start-llama-server.sh`.
 
@@ -68,9 +78,9 @@ Bootstrap writes:
 
 ## Server and runtime
 
-- **CPU (default):** llama.cpp; no GPU. Thread count auto-detected (or set `LLAMA_THREADS`). Context size default 8192 (`LLAMA_CTX_SIZE`). Start with `./start-llama-server.sh`.
-- **GPU (optional):** vLLM for faster inference. Default model: Nanbeige/Nanbeige4.1-3B. Bootstrap with `USE_VLLM=1 ./bootstrap.sh`. Start with `./start-vllm.sh` (defaults: 1 concurrent, 100k context, gpu_memory_utilization=0.95). Stop with `./stop-vllm.sh`. Same port layout (backend 28080, proxy 28081). On smaller GPUs or OOM, set `VLLM_EXTRA_ARGS="--max-model-len 32768 --gpu-memory-utilization 0.85"`.
-- **Port / context / threads:** `LLAMA_PORT` (or `VLLM_PORT` for vLLM), `LLAMA_CTX_SIZE`, `LLAMA_THREADS` when starting the server (see `start-llama-server.sh`).
+- **CPU (default):** llama.cpp; no GPU. Thread count auto-detected from `nproc` (override: `LLAMA_THREADS`). Context size auto-detected from available RAM: 2048–32768 (override: `LLAMA_CTX_SIZE`). Start with `./start-llama-server.sh`.
+- **GPU (optional):** vLLM for faster inference. Default model: Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF (same as CPU). Bootstrap with `USE_VLLM=1 ./bootstrap.sh`. Start with `./start-vllm.sh` (defaults: 1 concurrent, auto-detected context from GPU memory, gpu_memory_utilization=0.95). Stop with `./stop-vllm.sh`. Same port layout (backend 28080, proxy 28081). Override: `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEM_UTIL`, `VLLM_MAX_NUM_SEQS`.
+- **Port / context / threads:** `LLAMA_PORT` (or `VLLM_PORT` for vLLM), `LLAMA_CTX_SIZE`, `LLAMA_THREADS`, `VLLM_MAX_MODEL_LEN`, `VLLM_GPU_MEM_UTIL` when starting the server.
 
 ---
 
