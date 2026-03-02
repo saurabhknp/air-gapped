@@ -75,6 +75,11 @@ else
   fi
 fi
 
+# Sync Codex config model_context_window with actual server context size
+if [[ -f "$ROOT/.codex/config.toml" ]]; then
+  sed -i.bak "s/^model_context_window = .*/model_context_window = $CTX/" "$ROOT/.codex/config.toml" 2>/dev/null || true
+fi
+
 echo "Starting llama-server on port $PORT (ctx=$CTX, threads=${THREADS_ARG[1]:-auto}, model=$(basename "$GGUF_PATH"))"
 "$LLAMA_SERVER" -m "$GGUF_PATH" --host 127.0.0.1 --port "$PORT" -c "$CTX" "${THREADS_ARG[@]}" &
 svr_pid=$!

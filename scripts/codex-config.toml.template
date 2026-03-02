@@ -1,6 +1,10 @@
-# Codex config: base_url points to codex-proxy (converts to llama-server). Proxy fixes "tool type must be 'function'" for Codex.
+# Codex config: base_url points to codex-proxy (Responses API ↔ Chat Completions).
 model = "__MODEL_NAME__"
 model_provider = "local"
+
+# Model metadata (auto-updated by start scripts to match the actual server config)
+model_context_window = __CTX_WINDOW__
+model_reasoning_effort = "low"
 
 [model_providers.local]
 name = "llama.cpp"

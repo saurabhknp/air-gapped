@@ -53,7 +53,8 @@ fi
 mkdir -p "$ROOT/.codex"
 [[ -f "$ROOT/scripts/codex-config.toml.template" ]] || { echo "[bootstrap] ERROR: scripts/codex-config.toml.template not found." >&2; exit 1; }
 PROXY_PORT="${CODEX_PROXY_PORT:-28081}"
-sed -e "s/__PROXY_PORT__/$PROXY_PORT/g" -e "s/__MODEL_NAME__/$MODEL_NAME/g" "$ROOT/scripts/codex-config.toml.template" > "$ROOT/.codex/config.toml"
+DEFAULT_CTX=8192
+sed -e "s/__PROXY_PORT__/$PROXY_PORT/g" -e "s/__MODEL_NAME__/$MODEL_NAME/g" -e "s/__CTX_WINDOW__/$DEFAULT_CTX/g" "$ROOT/scripts/codex-config.toml.template" > "$ROOT/.codex/config.toml"
 echo "MODEL_DIR=\"$MODEL_DIR\"" > "$ROOT/.codex/model_info"
 echo "SERVED_MODEL_NAME=\"$MODEL_NAME\"" >> "$ROOT/.codex/model_info"
 echo "LLAMA_SERVER=\"$LLAMA_SERVER\"" >> "$ROOT/.codex/model_info"

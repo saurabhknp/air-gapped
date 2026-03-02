@@ -51,7 +51,7 @@ This folder holds technical reference for the **Air-Gapped Codex + llama.cpp** p
 
 Bootstrap writes:
 
-- `.codex/config.toml` — model, provider `local`, base URL pointing at codex-proxy (port from `CODEX_PROXY_PORT` or 28081) so Codex gets correct tool handling, profile `local` with `web_search=disabled`.
+- `.codex/config.toml` — model, provider `local`, base URL pointing at codex-proxy (port from `CODEX_PROXY_PORT` or 28081), profile `local` with `web_search=disabled`. Includes `model_context_window` (auto-synced by start scripts to match the actual backend context size) and `model_reasoning_effort = "low"` (appropriate for 3B models).
 - `.codex/model_info` — `MODEL_DIR`, `SERVED_MODEL_NAME`, `LLAMA_SERVER` for CPU; when `USE_VLLM=1`, also `VLLM_MODEL`, `VLLM_SERVED_NAME`, and `VLLM_TOKENIZER` (for GGUF models).
 
 ---

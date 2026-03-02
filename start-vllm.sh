@@ -102,6 +102,16 @@ for i in $(seq 1 120); do
   fi
 done
 
+# Query vLLM for actual max_model_len and sync Codex config
+if [[ -f "$ROOT/.codex/config.toml" ]]; then
+  VLLM_CTX=$(curl -sf "http://127.0.0.1:$PORT/v1/models" 2>/dev/null \
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',[{}])[0].get('max_model_len', d.get('data',[{}])[0].get('meta',{}).get('n_ctx_train',8192)))" 2>/dev/null || echo "")
+  if [[ -n "$VLLM_CTX" ]] && [[ "$VLLM_CTX" =~ ^[0-9]+$ ]]; then
+    sed -i.bak "s/^model_context_window = .*/model_context_window = $VLLM_CTX/" "$ROOT/.codex/config.toml" 2>/dev/null || true
+    echo "Synced model_context_window = $VLLM_CTX to .codex/config.toml"
+  fi
+fi
+
 # Start codex-proxy
 PROXY_BIN="$ROOT/codex-proxy/codex-proxy"
 if [[ -x "$PROXY_BIN" ]]; then
