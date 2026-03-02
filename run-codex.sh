@@ -12,9 +12,10 @@ if [[ ! -f "$ROOT/.codex/config.toml" ]]; then
   exit 1
 fi
 if [[ "${1:-}" == "exec" ]]; then
-  PORT="${LLAMA_PORT:-28080}"
-  if ! curl -sf "http://127.0.0.1:$PORT/v1/models" >/dev/null 2>&1; then
-    echo "Model server is not reachable at port $PORT. Start it with: ./start-llama-server.sh" >&2
+  # Check codex-proxy (port 28081), not llama.cpp directly
+  PROXY_PORT="${CODEX_PROXY_PORT:-28081}"
+  if ! curl -sf "http://127.0.0.1:$PROXY_PORT/health" >/dev/null 2>&1; then
+    echo "Codex proxy not reachable at port $PROXY_PORT. Start backend + proxy with: ./start-llama-server.sh (CPU) or ./start-vllm.sh (GPU)" >&2
     exit 1
   fi
   shift

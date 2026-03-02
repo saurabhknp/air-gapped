@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Stop llama-server and codex_proxy started by start-llama-server.sh.
+# Stop vLLM server and codex-proxy started by start-vllm.sh.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 stopped=""
-# Stop codex_proxy first
+
 PROXY_PID_FILE="$ROOT/.codex/codex-proxy.pid"
 if [[ -r "$PROXY_PID_FILE" ]]; then
   pid=$(cat "$PROXY_PID_FILE")
@@ -13,30 +13,28 @@ if [[ -r "$PROXY_PID_FILE" ]]; then
   fi
   rm -f "$PROXY_PID_FILE"
 fi
-# Stop llama-server
-PID_FILE="$ROOT/.codex/llama-server.pid"
-if [[ -r "$PID_FILE" ]]; then
-  pid=$(cat "$PID_FILE")
+
+VLLM_PID_FILE="$ROOT/.codex/vllm-server.pid"
+if [[ -r "$VLLM_PID_FILE" ]]; then
+  pid=$(cat "$VLLM_PID_FILE")
   if kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
     stopped="${stopped:+$stopped }$pid"
   fi
-  rm -f "$PID_FILE"
+  rm -f "$VLLM_PID_FILE"
 fi
+
 if [[ -z "$stopped" ]]; then
-  if [[ -f "$ROOT/.codex/model_info" ]]; then
-    source "$ROOT/.codex/model_info"
-    pids=$(pgrep -f "llama-server.*$MODEL_DIR" 2>/dev/null || true)
-  else
-    pids=$(pgrep -f "llama-server.*$ROOT/models" 2>/dev/null || true)
-  fi
+  pids=$(pgrep -f "vllm.entrypoints.openai.api_server" 2>/dev/null || true)
+  [[ -z "$pids" ]] && pids=$(pgrep -f "vllm serve" 2>/dev/null || true)
   if [[ -n "$pids" ]]; then
     for p in $pids; do kill "$p" 2>/dev/null || true; done
     stopped="$pids"
   fi
 fi
+
 if [[ -n "$stopped" ]]; then
-  echo "Stopped llama-server (PID(s): $stopped)."
+  echo "Stopped vLLM (PID(s): $stopped)."
 else
-  echo "No llama-server process found for this project." >&2
+  echo "No vLLM process found for this project." >&2
 fi

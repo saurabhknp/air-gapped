@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 - **Bootstrap:** Uses downloaded binary; `make clean` removes `llama_bin/` (no `llama.cpp/`).
 - **Docs:** README and VERSIONS.md updated for binary download and `llama_bin/`.
+- **pyproject.toml:** Renamed to `air-gapped-codex-llamacpp`, version 0.4.0; removed vLLM dependency; wheel includes `scripts/` for `uv run`.
 
 ---
 
@@ -52,7 +53,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Added
 
 - **CPU-first defaults:** Default install is CPU-only (no CUDA). Use `VLLM_USE_GPU=1 ./bootstrap.sh` or `./bootstrap.sh gpu` for GPU/CUDA.
-- **Default model:** GGUF quantized `Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF` (~2GB, CPU-friendly).
+- **Default model:** `Nanbeige/Nanbeige4.1-3B` (CPU-friendly).
 - **Auto-detect CPU resources:** When running in CPU mode, `start-vllm.sh` auto-detects logical CPU count and total RAM, and sets `OMP_NUM_THREADS` and `VLLM_CPU_KVCACHE_SPACE` (~50% RAM, min 2 GiB). Override with `VLLM_CPU_NUM_THREADS` and `VLLM_CPU_KVCACHE_SPACE` if needed.
 - **Install mode tracking:** `.codex/install_mode` records whether bootstrap was CPU (0) or GPU (1). `start-vllm.sh` warns if you set `VLLM_DEVICE=cuda` but the project was bootstrapped CPU-only.
 - **CHANGELOG.md** (this file).

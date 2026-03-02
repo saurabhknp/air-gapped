@@ -17,6 +17,10 @@ __pycache__/
 *.egg-info/
 .eggs/
 
+# codex-proxy build / runtime
+codex-proxy/codex-proxy
+codex-proxy/*.log
+
 # Env / local
 .env
 .envrc

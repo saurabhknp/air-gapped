@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start llama.cpp server (CPU only) for the model chosen at bootstrap. Keep terminal open; use run-codex.sh in another.
 #
-# Override: LLAMA_PORT (default 28080), LLAMA_CTX_SIZE (default 4096), LLAMA_THREADS (unset = auto).
+# Override: LLAMA_PORT (default 28080), LLAMA_CTX_SIZE (default 8192), LLAMA_THREADS (unset = auto).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 PORT="${LLAMA_PORT:-28080}"
@@ -39,7 +39,7 @@ if compgen -G "$MODEL_DIR/*.gguf" >/dev/null 2>&1; then
 fi
 [[ -z "$GGUF_PATH" ]] && { echo "No .gguf file in $MODEL_DIR" >&2; exit 1; }
 
-CTX="${LLAMA_CTX_SIZE:-4096}"
+CTX="${LLAMA_CTX_SIZE:-8192}"
 THREADS_ARG=()
 if [[ -n "${LLAMA_THREADS:-}" ]]; then
   THREADS_ARG=(-t "$LLAMA_THREADS")
@@ -54,6 +54,24 @@ fi
 "$LLAMA_SERVER" -m "$GGUF_PATH" --host 127.0.0.1 --port "$PORT" -c "$CTX" "${THREADS_ARG[@]}" &
 svr_pid=$!
 echo "$svr_pid" > "$PID_FILE"
+PROXY_PID_FILE="$ROOT/.codex/codex-proxy.pid"
 trap 'kill "$svr_pid" 2>/dev/null; rm -f "$PID_FILE"; exit' INT TERM
+
+# Start Go codex-proxy (converts Responses API to Chat Completions)
+# This fixes "tool type must be 'function'" errors from llama.cpp
+PROXY_PORT="${CODEX_PROXY_PORT:-28081}"
+PROXY_BIN="$ROOT/codex-proxy/codex-proxy"
+if [[ -x "$PROXY_BIN" ]]; then
+  echo "Starting codex-proxy on port $PROXY_PORT..."
+  LISTEN_ADDR=":$PROXY_PORT" UPSTREAM_URL="http://127.0.0.1:$PORT/v1" "$PROXY_BIN" &
+  proxy_pid=$!
+  echo "$proxy_pid" > "$PROXY_PID_FILE"
+  trap 'kill "$proxy_pid" 2>/dev/null; kill "$svr_pid" 2>/dev/null; rm -f "$PID_FILE" "$PROXY_PID_FILE"; exit' INT TERM
+  echo ""
+  echo "Codex proxy running at: http://127.0.0.1:$PROXY_PORT/v1"
+  echo "Configure .codex/config.toml: base_url = \"http://127.0.0.1:$PROXY_PORT/v1\""
+  echo ""
+fi
+
 wait "$svr_pid"
-rm -f "$PID_FILE"
+rm -f "$PID_FILE" "$PROXY_PID_FILE"

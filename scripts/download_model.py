@@ -4,7 +4,7 @@
 Usage:
   python scripts/download_model.py <ROOT> [REPO_ID]
 
-  REPO_ID: Hugging Face repo (e.g. Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF). Omit for default.
+  REPO_ID: Hugging Face repo (GGUF for llama.cpp, e.g. Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF). Omit for default.
   Default: Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF.
 
   Use project .venv: .venv/bin/python scripts/download_model.py <ROOT> [REPO_ID]
@@ -32,11 +32,7 @@ def main() -> None:
 
     from huggingface_hub import snapshot_download
 
-    snapshot_download(
-        repo_id=repo_id,
-        local_dir=local_dir,
-        local_dir_use_symlinks=False,
-    )
+    snapshot_download(repo_id=repo_id, local_dir=local_dir)
     print(f"Model saved to {local_dir}")
     print(f"Served model name (for config): {local_name}")
 

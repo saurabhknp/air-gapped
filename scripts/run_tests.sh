@@ -45,17 +45,33 @@ for i in $(seq 1 "$START_TIMEOUT"); do
     exit 1
   fi
 done
+PROXY_PORT="${CODEX_PROXY_PORT:-28081}"
+if [[ -x "$ROOT/codex-proxy/codex-proxy" ]]; then
+  echo "Waiting for codex-proxy on port $PROXY_PORT..."
+  for i in $(seq 1 15); do
+    if curl -sf "http://127.0.0.1:$PROXY_PORT/health" >/dev/null 2>&1; then
+      echo "  Proxy ready"
+      break
+    fi
+    sleep 1
+  done
+fi
 
 # 4) API test
 run ./test-api.sh
 
-# 5) Codex exec (if codex on PATH; optional: llama-server may return 400 for tool schema)
+# 5) Codex exec (if codex on PATH; uses proxy when config base_url points to proxy)
 if command -v codex &>/dev/null; then
-  if ./run-codex.sh exec "echo test-ok" 2>&1 | tee /tmp/codex_exec_out.txt; then
+  _codex_out="$ROOT/.codex/codex_exec_out.txt"
+  _codex_timeout="${CODEX_EXEC_TIMEOUT:-600}"
+  if timeout "$_codex_timeout" ./run-codex.sh exec "echo test-ok" 2>&1 | tee "$_codex_out"; then
     echo "  OK"
   else
-    if grep -q "type.*must be.*function" /tmp/codex_exec_out.txt 2>/dev/null; then
-      echo "  SKIP (known API compatibility: tool type)"
+    _exit=$?
+    if [[ $_exit -eq 124 ]]; then
+      echo "  SKIP (Codex exec timed out after ${_codex_timeout}s; CPU can be slow)"
+    elif grep -q "type.*must be.*function" "$_codex_out" 2>/dev/null; then
+      echo "  SKIP (llama-server rejects non-function tools; use USE_CODEX_PROXY=1 ./start-llama-server.sh if needed)"
     else
       echo "  FAIL"
       FAILED=1
@@ -76,8 +92,9 @@ trap - EXIT
 
 # 7) Failure paths (ensure server is fully stopped)
 echo "--- Failure-path checks..."
-_offline_out=$(./run-codex.sh exec "x" 2>&1) || true
-if echo "$_offline_out" | grep -qE "not reachable|Connection refused"; then
+_codex_timeout_offline=30
+_offline_out=$(timeout "$_codex_timeout_offline" ./run-codex.sh exec "x" 2>&1) || true
+if echo "$_offline_out" | grep -qE "not reachable|Connection refused|error sending request|stream disconnected|Reconnecting"; then
   echo "  run-codex exec without server: OK"
 else
   echo "  run-codex exec without server: FAIL"

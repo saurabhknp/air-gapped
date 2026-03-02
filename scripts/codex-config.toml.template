@@ -1,8 +1,13 @@
-# Codex config for local llama.cpp server (air-gapped). Bootstrap sets __PORT__ and __MODEL_NAME__.
+# Codex config: base_url points to codex-proxy (converts to llama-server). Proxy fixes "tool type must be 'function'" for Codex.
 model = "__MODEL_NAME__"
-model_provider = "proxy"
+model_provider = "local"
 
-[model_providers.proxy]
+[model_providers.local]
 name = "llama.cpp"
-base_url = "http://127.0.0.1:__PORT__/v1"
+base_url = "http://127.0.0.1:__PROXY_PORT__/v1"
 wire_api = "responses"
+
+[profiles.local]
+model = "__MODEL_NAME__"
+model_provider = "local"
+web_search = "disabled"

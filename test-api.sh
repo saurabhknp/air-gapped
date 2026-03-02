@@ -14,11 +14,13 @@ MODEL_FOR_TEST="Nanbeige4.1-3B-Q4_K_M-GGUF"
 curl -s "http://127.0.0.1:$PORT/v1/models" | head -50
 echo ""
 echo "Chat completion (POST /v1/chat/completions)..."
+_chat_out="$ROOT/.codex/test_chat_out.json"
 curl -sf "http://127.0.0.1:$PORT/v1/chat/completions" \
   -H "Content-Type: application/json" \
   -d "{
     \"model\": \"$MODEL_FOR_TEST\",
     \"messages\": [{\"role\": \"user\", \"content\": \"hi\"}],
     \"max_tokens\": 64
-  }" | head -20
+  }" -o "$_chat_out"
+head -20 "$_chat_out"
 echo ""

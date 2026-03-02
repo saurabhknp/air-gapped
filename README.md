@@ -21,7 +21,7 @@ Air-gapped ops: no internet, no devices, no docs, no AI. Long K8s commands and c
 
 - Runs a **local LLM** via [llama.cpp](https://github.com/ggml-org/llama.cpp) (CPU-only inference, no GPU).
 - Exposes an **OpenAI-compatible HTTP API** so **[Codex CLI](https://developers.openai.com/codex)** (OpenAI's coding/ops agent) talks to that local model—same agent experience, **fully offline**.
-- Can be **prepared once** on a connected machine (build llama.cpp, download GGUF model, generate config), then **copied as a whole** onto approved media and into the secure area. No internet required on the other side.
+- Can be **prepared once** on a connected machine (download llama.cpp binary and GGUF model, generate config), then **copied as a whole** onto approved media and into the secure area. No internet required on the other side.
 
 Use it for **deployment, configuration, runbooks, and troubleshooting**—without leaving the room or touching the cloud.
 
@@ -37,9 +37,9 @@ Use a terminal in this project folder.
 ./bootstrap.sh
 ```
 
-This downloads the llama.cpp prebuilt binary (Linux x64 CPU), downloads the default GGUF model ([Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF](https://huggingface.co/Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF), ~2GB), and writes Codex config. When it finishes: `[bootstrap] Done. Next: ...`
+This downloads the llama.cpp prebuilt binary (Linux x64 CPU), builds **codex-proxy**, downloads the default model ([Nanbeige/Nanbeige4.1-3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B)), and writes Codex config (pointing at the proxy). When it finishes: `[bootstrap] Done. Next: ...`
 
-### 2. Start the model server
+### 2. Start the model server and proxy
 
 **Leave this terminal open.**
 
@@ -47,7 +47,7 @@ This downloads the llama.cpp prebuilt binary (Linux x64 CPU), downloads the defa
 ./start-llama-server.sh
 ```
 
-Wait until the server is up (e.g. you can open http://127.0.0.1:28080 in a browser for the Web UI). First start may take a short while to load the model.
+This starts **llama-server** (port 28080) and **codex-proxy** (port 28081). Codex is configured to use the proxy so tools work correctly (avoids the "tool type must be 'function'" error). Wait until the server is up (e.g. open http://127.0.0.1:28080 for the Web UI). First start may take a short while to load the model.
 
 ### 3. Run Codex (in a second terminal)
 
@@ -95,17 +95,92 @@ Always run `./run-codex.sh` from **this project folder** so Codex uses this proj
 
 ---
 
-## Optional: different model or port
+## Usage guide
 
-**Default model:** [Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF](https://huggingface.co/Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF). To use another GGUF repo:
+### How to use (daily workflow)
 
-```bash
-HF_MODEL_REPO_ID=owner/repo-name ./bootstrap.sh
-```
+**CPU path (llama.cpp, default):**
 
-**Port:** default is 28080. Override with `LLAMA_PORT=28081 ./start-llama-server.sh` and `LLAMA_PORT=28081 ./run-codex.sh exec "..."`.
+1. **First time only:** `./bootstrap.sh` (needs internet).
+2. **Start backend + proxy:** `./start-llama-server.sh` (leave terminal open).
+3. **In another terminal:** `./run-codex.sh exec "your task"`.
+4. **When done:** `./stop-llama-server.sh` or Ctrl+C in the server terminal.
 
-**Context size / threads:** `LLAMA_CTX_SIZE=8192` and/or `LLAMA_THREADS=8` when starting the server (see `start-llama-server.sh`).
+**GPU path (vLLM, optional):**
+
+1. **First time only:** `USE_VLLM=1 ./bootstrap.sh` (needs internet + GPU/CUDA).
+2. **Start backend + proxy:** `./start-vllm.sh` (leave terminal open).
+3. **In another terminal:** `./run-codex.sh exec "your task"`.
+4. **When done:** `./stop-vllm.sh` or Ctrl+C in the server terminal.
+
+If vLLM hits **CUDA out of memory**, lower context or VRAM: `VLLM_EXTRA_ARGS="--max-model-len 32768 --gpu-memory-utilization 0.85" ./start-vllm.sh`
+
+**Same from then on:** Codex talks to the proxy (port 28081); the proxy talks to whichever backend you started (llama or vLLM). You only choose CPU vs GPU when you run `start-llama-server.sh` or `start-vllm.sh`.
+
+---
+
+### How to switch models
+
+**CPU (llama.cpp) — GGUF models:**
+
+- Default: [Nanbeige/Nanbeige4.1-3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B).
+- To use another Hugging Face repo (GGUF or compatible), re-run bootstrap with the repo id; this downloads the new model and updates `.codex/config.toml` and `.codex/model_info`:
+
+  ```bash
+  HF_MODEL_REPO_ID=owner/repo-name ./bootstrap.sh
+  ```
+
+- Then start the server as usual: `./start-llama-server.sh`. The new model is loaded from `models/<repo-name>/`.
+
+**GPU (vLLM) — Hugging Face models:**
+
+- Default vLLM model (when you used `USE_VLLM=1`): [Nanbeige/Nanbeige4.1-3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B). Started with max 1 concurrent, 100k context, high VRAM use (0.95).
+- To use another Hugging Face model, re-run bootstrap with vLLM and set `VLLM_MODEL`:
+
+  ```bash
+  VLLM_MODEL=owner/repo-name USE_VLLM=1 ./bootstrap.sh
+  ```
+
+- Then start vLLM: `./start-vllm.sh`. vLLM will use the model specified in `.codex/model_info` (`VLLM_MODEL`).
+
+**Note:** CPU uses GGUF repos; GPU (vLLM) uses Hugging Face model ids. They are independent. You can have one GGUF model for CPU and one HF model for GPU.
+
+---
+
+### How to switch between GPU and CPU
+
+You can use **either** llama.cpp (CPU) **or** vLLM (GPU) on the same project; only one backend should run at a time (same port 28080).
+
+**From GPU (vLLM) to CPU (llama.cpp):**
+
+1. Stop the GPU backend: `./stop-vllm.sh`.
+2. Ensure you have already run a **CPU** bootstrap at least once (so `models/` has a GGUF and `.codex/model_info` has `MODEL_DIR` / `LLAMA_SERVER`). If you only ever ran `USE_VLLM=1 ./bootstrap.sh`, run a normal bootstrap once: `./bootstrap.sh` (this adds/keeps llama.cpp binary and default GGUF model).
+3. Start the CPU backend: `./start-llama-server.sh`.
+4. Run Codex as usual: `./run-codex.sh exec "..."`.
+
+If Codex still sends the wrong model name (e.g. the vLLM model name), restore the config for the CPU model by re-running bootstrap without vLLM: `./bootstrap.sh`. That rewrites `.codex/config.toml` with the GGUF model name.
+
+**From CPU (llama.cpp) to GPU (vLLM):**
+
+1. Stop the CPU backend: `./stop-llama-server.sh`.
+2. Ensure vLLM is installed and a vLLM model is set. If you have not yet run bootstrap with vLLM, run: `USE_VLLM=1 ./bootstrap.sh` (or `VLLM_MODEL=owner/repo USE_VLLM=1 ./bootstrap.sh`).
+3. Start the GPU backend: `./start-vllm.sh`. This will update `.codex/config.toml` to the vLLM model name so requests match.
+4. Run Codex as usual: `./run-codex.sh exec "..."`.
+
+**Summary:**
+
+| You want to use | Do this |
+|-----------------|--------|
+| CPU (llama.cpp) | `./stop-vllm.sh` (if vLLM was running), then `./start-llama-server.sh`. Optionally `./bootstrap.sh` to refresh config model name. |
+| GPU (vLLM)      | `./stop-llama-server.sh` (if llama was running), then `./start-vllm.sh`. |
+
+---
+
+### Port and tuning (optional)
+
+**Port:** Backend default is 28080, proxy is 28081. Override with `LLAMA_PORT=28081 ./start-llama-server.sh` (or `VLLM_PORT=28081 ./start-vllm.sh`) and use the same port when running Codex if you change it.
+
+**CPU context / threads:** `LLAMA_CTX_SIZE=8192` and/or `LLAMA_THREADS=8` when starting: `LLAMA_CTX_SIZE=8192 LLAMA_THREADS=8 ./start-llama-server.sh`.
 
 ---
 
@@ -117,7 +192,8 @@ HF_MODEL_REPO_ID=owner/repo-name ./bootstrap.sh
 | "Model server is not reachable" or Codex doesn't answer | Start the server: `./start-llama-server.sh`, wait until it's up, then run `./run-codex.sh exec "..."`. |
 | Codex CLI not found | Install from Cursor (Preferences → Advanced → Install CLI) or npm; open a new terminal. |
 | Port 28080 in use | Run `./stop-llama-server.sh`, wait a few seconds, try again. Or use another port: `LLAMA_PORT=28081 ./start-llama-server.sh` and `LLAMA_PORT=28081 ./run-codex.sh exec "..."`. |
-| llama-server build fails | Ensure `cmake` and a C++ compiler are installed. On Linux: `sudo apt install build-essential cmake` (or equivalent). |
+| 400 `'type' of tool must be 'function'` | Codex sends tools llama-server rejects. `./run-codex.sh` uses profile `local` (web_search=disabled). If it still happens, start with `USE_CODEX_PROXY=1 ./start-llama-server.sh` and point config at the proxy (see docs). |
+| llama-server not found | Run `./bootstrap.sh` to download the prebuilt binary. |
 
 ---
 
@@ -135,13 +211,15 @@ HF_MODEL_REPO_ID=owner/repo-name ./bootstrap.sh
 | Path | Purpose |
 |------|--------|
 | `bootstrap.sh` | One-time setup (run once). |
-| `start-llama-server.sh` | Start the model server. |
-| `stop-llama-server.sh` | Stop the model server. |
+| `start-llama-server.sh` | Start llama.cpp (CPU) + proxy. |
+| `stop-llama-server.sh` | Stop llama-server and proxy. |
+| `start-vllm.sh` | Start vLLM (GPU) + proxy (requires `USE_VLLM=1` at bootstrap). |
+| `stop-vllm.sh` | Stop vLLM and proxy. |
 | `run-codex.sh` | Run Codex with this project's config. |
 | `test-api.sh` | Test server response. |
 | `models/`, `.venv/`, `.codex/`, `llama_bin/` | Created by bootstrap; copy them when moving the kit. |
 
-**Make:** `make deps` (= bootstrap), `make clean` (remove generated content), `make test` (run checks; requires `codex` on PATH).
+**Make:** `make deps` (= bootstrap), `make clean` (remove generated content), `make test` (run checks; requires `codex` on PATH). For GPU: `USE_VLLM=1 ./bootstrap.sh` then `./start-vllm.sh`.
 
 ---
 

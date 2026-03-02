@@ -37,7 +37,7 @@ if [[ -z "$LLAMA_SERVER" ]] || [[ ! -x "$LLAMA_SERVER" ]]; then
 fi
 echo "[bootstrap] Using llama-server at $LLAMA_SERVER"
 
-# 4. Model (default: Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF)
+# 4. Model for CPU/llama.cpp: must be a GGUF repo. Default: Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF
 HF_MODEL_REPO_ID="${HF_MODEL_REPO_ID:-Edge-Quant/Nanbeige4.1-3B-Q4_K_M-GGUF}"
 MODEL_NAME="${HF_MODEL_REPO_ID##*/}"
 MODEL_DIR="$ROOT/models/$MODEL_NAME"
@@ -49,14 +49,26 @@ else
   echo "[bootstrap] Model already present at $MODEL_DIR"
 fi
 
-# 5. Codex config and model info
+# 5. Codex config and model info (base_url = codex-proxy so Codex gets correct tool handling)
 mkdir -p "$ROOT/.codex"
 [[ -f "$ROOT/scripts/codex-config.toml.template" ]] || { echo "[bootstrap] ERROR: scripts/codex-config.toml.template not found." >&2; exit 1; }
-PORT="${LLAMA_PORT:-28080}"
-sed -e "s/__PORT__/$PORT/g" -e "s/__MODEL_NAME__/$MODEL_NAME/g" "$ROOT/scripts/codex-config.toml.template" > "$ROOT/.codex/config.toml"
+PROXY_PORT="${CODEX_PROXY_PORT:-28081}"
+sed -e "s/__PROXY_PORT__/$PROXY_PORT/g" -e "s/__MODEL_NAME__/$MODEL_NAME/g" "$ROOT/scripts/codex-config.toml.template" > "$ROOT/.codex/config.toml"
 echo "MODEL_DIR=\"$MODEL_DIR\"" > "$ROOT/.codex/model_info"
 echo "SERVED_MODEL_NAME=\"$MODEL_NAME\"" >> "$ROOT/.codex/model_info"
 echo "LLAMA_SERVER=\"$LLAMA_SERVER\"" >> "$ROOT/.codex/model_info"
-echo "[bootstrap] .codex/config.toml and .codex/model_info installed (model=$MODEL_NAME, port=$PORT)"
 
-echo "[bootstrap] Done. Next: ./start-llama-server.sh (then in another terminal: ./run-codex.sh exec \"Your prompt\")"
+# Optional: vLLM (GPU) support. When USE_VLLM=1, install vllm and set VLLM_MODEL for start-vllm.sh
+if [[ "${USE_VLLM:-0}" == "1" ]]; then
+  echo "[bootstrap] Installing vLLM (GPU) ..."
+  uv pip install --quiet "vllm>=0.6.0"
+  VLLM_MODEL="${VLLM_MODEL:-Nanbeige/Nanbeige4.1-3B}"
+  VLLM_SERVED_NAME="${VLLM_MODEL##*/}"
+  echo "VLLM_MODEL=\"$VLLM_MODEL\"" >> "$ROOT/.codex/model_info"
+  echo "VLLM_SERVED_NAME=\"$VLLM_SERVED_NAME\"" >> "$ROOT/.codex/model_info"
+  echo "[bootstrap] vLLM ready. Model: $VLLM_MODEL. Start with: ./start-vllm.sh"
+fi
+
+echo "[bootstrap] .codex/config.toml and .codex/model_info installed (model=$MODEL_NAME, proxy_port=$PROXY_PORT)"
+
+echo "[bootstrap] Done. Next: ./start-llama-server.sh (CPU) or ./start-vllm.sh (GPU, requires USE_VLLM=1 at bootstrap)"
