@@ -41,8 +41,8 @@ fi
 echo "--- Starting vLLM + codex-proxy..."
 START_TIMEOUT="${VLLM_START_TIMEOUT:-180}"
 mkdir -p "$ROOT/.codex"
-# Use 32k context for test (balance between 8k and 100k); override with VLLM_EXTRA_ARGS if needed
-export VLLM_EXTRA_ARGS="${VLLM_EXTRA_ARGS:---max-model-len 32768 --gpu-memory-utilization 0.9}"
+# Let start-vllm.sh auto-detect GPU resources (max_model_len, gpu_memory_utilization).
+# Override only if you need specific test values via VLLM_MAX_MODEL_LEN / VLLM_GPU_MEM_UTIL.
 ./start-vllm.sh > "$ROOT/.codex/vllm-server.log" 2>&1 &
 SERVER_PID=$!
 cleanup() { kill $SERVER_PID 2>/dev/null; ./stop-vllm.sh 2>/dev/null; }
